@@ -1,0 +1,133 @@
+'use client';
+
+import { useState, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useAuth } from '@/context/AuthContext';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Truck, Eye, EyeOff } from 'lucide-react';
+
+// Komponen utama yang menggunakan useSearchParams
+function LoginForm() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { login } = useAuth();
+  
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setIsLoading(true);
+
+    try {
+      await login(email, password);
+      const from = searchParams.get('from') || '/dashboard';
+      router.push(from);
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Login gagal. Periksa email dan password Anda.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <Card className="w-full max-w-md">
+      <CardHeader>
+        <CardTitle>Masuk ke Akun Anda</CardTitle>
+        <CardDescription>Masukkan kredensial untuk mengakses sistem</CardDescription>
+      </CardHeader>
+      <form onSubmit={handleSubmit}>
+        <CardContent className="space-y-4">
+          {error && (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          <div className="space-y-2">
+            <label htmlFor="email" className="text-sm font-medium">Email</label>
+            <Input
+              id="email"
+              type="email"
+              placeholder="admin@fleetflow.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              disabled={isLoading}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label htmlFor="password" className="text-sm font-medium">Password</label>
+            <div className="relative">
+              <Input
+                id="password"
+                type={showPassword ? 'text' : 'password'}
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                disabled={isLoading}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+          </div>
+        </CardContent>
+
+        <CardFooter>
+          <Button type="submit" className="w-full" disabled={isLoading}>
+            {isLoading ? (
+              <div className="flex items-center gap-2">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                Memproses...
+              </div>
+            ) : (
+              'Masuk'
+            )}
+          </Button>
+        </CardFooter>
+      </form>
+    </Card>
+  );
+}
+
+// Wrapper halaman dengan Suspense (WAJIB untuk useSearchParams)
+export default function LoginPage() {
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4">
+      <div className="mb-8 text-center">
+        <div className="mx-auto h-16 w-16 bg-primary rounded-full flex items-center justify-center mb-4">
+          <Truck className="h-8 w-8 text-white" />
+        </div>
+        <h2 className="text-3xl font-extrabold text-gray-900">FleetFlow</h2>
+        <p className="mt-2 text-sm text-gray-600">Fleet & Delivery Management System</p>
+      </div>
+
+      <Suspense fallback={
+        <div className="flex items-center justify-center w-full max-w-md h-64">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        </div>
+      }>
+        <LoginForm />
+      </Suspense>
+
+      <div className="mt-8 text-center text-xs text-gray-500">
+        <p>Demo Credentials:</p>
+        <p>admin@fleetflow.com / password</p>
+      </div>
+    </div>
+  );
+}
