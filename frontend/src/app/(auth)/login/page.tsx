@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,9 +10,10 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Truck, Eye, EyeOff } from 'lucide-react';
 
 function LoginForm() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const { login } = useAuth();
-  
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -26,13 +27,14 @@ function LoginForm() {
 
     try {
       await login(email, password);
-      console.log('✅ Login success! Forcing redirect...');
-      // Hard redirect menggunakan window.location
-      window.location.href = '/dashboard';
+      // Navigasi client-side (bukan reload penuh). Cookie token sudah
+      // di-set secara sinkron di dalam login(), jadi middleware tetap
+      // bisa membacanya tanpa perlu window.location.href.
+      const redirectTo = searchParams.get('from') || '/dashboard';
+      router.replace(redirectTo);
     } catch (err: any) {
       console.error('❌ Login error:', err);
       setError(err.message || 'Login gagal. Periksa email dan password Anda.');
-    } finally {
       setIsLoading(false);
     }
   };

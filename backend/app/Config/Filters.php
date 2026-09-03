@@ -25,13 +25,13 @@ class Filters extends BaseFilters
         'forcehttps'    => ForceHTTPS::class,
         'pagecache'     => PageCache::class,
         'performance'   => PerformanceMetrics::class,
-        // TAMBAHKAN BARIS INI:
         'jwtAuth'       => \App\Filters\JwtAuth::class,
     ];
 
     public array $required = [
         'before' => [
             'forcehttps',
+            'cors',
             'pagecache',
         ],
         'after' => [

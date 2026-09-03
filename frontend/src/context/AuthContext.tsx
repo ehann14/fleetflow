@@ -26,7 +26,19 @@ const MOCK_USERS: Record<string, User> = {
 const MOCK_PASSWORD = 'password';
 const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK === 'true';
 
-console.log(' USE_MOCK:', USE_MOCK);
+// Helper: middleware.ts (server-side) tidak bisa baca localStorage,
+// jadi kita simpan salinan token di cookie khusus untuk keperluan routing saja.
+// Sumber kebenaran untuk request API tetap localStorage (dipakai di services/api.ts).
+function setAuthCookie(token: string) {
+  if (typeof document === 'undefined') return;
+  const maxAge = 60 * 60 * 24; // 1 hari, samakan dengan JWT_EXPIRATION di backend
+  document.cookie = `token=${token}; path=/; max-age=${maxAge}; SameSite=Lax`;
+}
+
+function clearAuthCookie() {
+  if (typeof document === 'undefined') return;
+  document.cookie = 'token=; path=/; max-age=0; SameSite=Lax';
+}
 
 export function AuthProvider({ children }: { children: ReactNode }): ReactElement {
   const [user, setUser] = useState<User | null>(null);
@@ -39,22 +51,17 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactElemen
   }, []);
 
   const checkAuth = async () => {
-    console.log('🔍 Checking auth...');
     try {
       const storedToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
       const storedUser = typeof window !== 'undefined' ? localStorage.getItem('user') : null;
 
-      console.log('📦 Stored token:', storedToken ? 'EXISTS' : 'NULL');
-      console.log('📦 Stored user:', storedUser ? 'EXISTS' : 'NULL');
-
       if (storedToken && storedUser) {
         const parsedUser = JSON.parse(storedUser);
-        console.log('✅ Restored user from storage:', parsedUser);
         setToken(storedToken);
         setUser(parsedUser);
-        
+        setAuthCookie(storedToken);
+
         if (USE_MOCK) {
-          console.log('🎭 Mock mode: skipping API verification');
           setIsLoading(false);
           return;
         }
@@ -66,53 +73,40 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactElemen
             localStorage.setItem('user', JSON.stringify(response.data.data));
           }
         } catch (error) {
-          console.error('❌ Token verification failed:', error);
           localStorage.removeItem('token');
           localStorage.removeItem('user');
+          clearAuthCookie();
           setToken(null);
           setUser(null);
         }
-      } else {
-        console.log('⚠️ No stored credentials');
       }
     } catch (error) {
-      console.error('❌ Auth check error:', error);
+      console.error('Auth check error:', error);
     } finally {
       setIsLoading(false);
-      console.log('✅ Auth check complete. isLoading = false');
     }
   };
 
   const login = async (email: string, password: string) => {
-    console.log('🔐 Login attempt:', { email, password, USE_MOCK });
-    
     if (USE_MOCK) {
       await new Promise(resolve => setTimeout(resolve, 800));
       const mockUser = MOCK_USERS[email];
-      
-      console.log(' Mock user found:', mockUser ? 'YES' : 'NO');
-      
+
       if (mockUser && password === MOCK_PASSWORD) {
         const mockToken = 'mock-jwt-token-' + Date.now();
-        console.log('✅ Mock login success! Setting user:', mockUser);
-        
+
         setToken(mockToken);
         setUser(mockUser);
         localStorage.setItem('token', mockToken);
         localStorage.setItem('user', JSON.stringify(mockUser));
-        
-        // Verify it was saved
-        console.log('📦 Saved to localStorage. Verifying...');
-        console.log(' Token in storage:', localStorage.getItem('token'));
-        console.log('📦 User in storage:', localStorage.getItem('user'));
-        
+        setAuthCookie(mockToken);
+
         return;
       } else {
-        console.error(' Mock login failed: invalid credentials');
         throw new Error('Email atau password salah (mode mock)');
       }
     }
-    
+
     const response = await apiService.login(email, password);
     if (response.data.success) {
       const { token: newToken, user: userData } = response.data.data;
@@ -120,13 +114,13 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactElemen
       setUser(userData);
       localStorage.setItem('token', newToken);
       localStorage.setItem('user', JSON.stringify(userData));
+      setAuthCookie(newToken);
     } else {
       throw new Error(response.data.message || 'Login failed');
     }
   };
 
   const logout = async () => {
-    console.log('🚪 Logging out...');
     if (!USE_MOCK) {
       try { await apiService.logout(); } catch (error) { console.error('Logout error:', error); }
     }
@@ -134,24 +128,18 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactElemen
     setUser(null);
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    clearAuthCookie();
   };
 
-  const value = { 
-    user, 
-    token, 
-    isAuthenticated: !!user && !!token, 
-    isLoading, 
-    login, 
-    logout, 
-    checkAuth 
+  const value = {
+    user,
+    token,
+    isAuthenticated: !!user && !!token,
+    isLoading,
+    login,
+    logout,
+    checkAuth
   };
-
-  console.log(' AuthContext state:', { 
-    user: user?.email, 
-    hasToken: !!token, 
-    isAuthenticated: !!user && !!token, 
-    isLoading 
-  });
 
   return (
     <AuthContext.Provider value={value}>
