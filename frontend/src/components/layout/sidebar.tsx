@@ -11,7 +11,6 @@ import {
   Map, 
   Wrench, 
   Fuel, 
-  Bell,
   LogOut,
   FileText
 } from 'lucide-react';

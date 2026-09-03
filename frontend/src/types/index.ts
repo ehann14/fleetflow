@@ -2,22 +2,42 @@ export interface User {
   id: number;
   email: string;
   name: string;
-  role: 'admin' | 'dispatcher' | 'driver' | 'manager';
+  role: UserRole;
   created_at: string;
   updated_at: string;
 }
 
-export interface LoginRequest {
-  email: string;
-  password: string;
+export type UserRole = 'admin' | 'dispatcher' | 'driver' | 'manager';
+
+export type VehicleStatus = 'available' | 'assigned' | 'on_delivery' | 'maintenance' | 'inactive';
+
+export interface Vehicle {
+  id: number;
+  vehicle_code: string;
+  plate_number: string;
+  brand: string;
+  model: string;
+  type: string;
+  year: number;
+  capacity: number;
+  fuel_type: string;
+  current_mileage: number;
+  status: VehicleStatus;
+  last_service: string;
+  next_service: string;
+  created_at: string;
+  updated_at: string;
 }
 
-export interface LoginResponse {
+export interface PaginatedResponse<T> {
   success: boolean;
   message: string;
-  data: {
-    token: string;
-    user: User;
+  data: T[];
+  meta: {
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
   };
 }
 
@@ -32,5 +52,3 @@ export interface ApiError {
   message: string;
   errors?: Record<string, string[]>;
 }
-
-export type UserRole = 'admin' | 'dispatcher' | 'driver' | 'manager';

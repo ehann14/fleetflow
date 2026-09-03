@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,9 +9,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Truck, Eye, EyeOff } from 'lucide-react';
 
-// Komponen utama yang menggunakan useSearchParams
 function LoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const { login } = useAuth();
   
@@ -28,10 +26,12 @@ function LoginForm() {
 
     try {
       await login(email, password);
-      const from = searchParams.get('from') || '/dashboard';
-      router.push(from);
+      console.log('✅ Login success! Forcing redirect...');
+      // Hard redirect menggunakan window.location
+      window.location.href = '/dashboard';
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Login gagal. Periksa email dan password Anda.');
+      console.error('❌ Login error:', err);
+      setError(err.message || 'Login gagal. Periksa email dan password Anda.');
     } finally {
       setIsLoading(false);
     }
@@ -104,7 +104,6 @@ function LoginForm() {
   );
 }
 
-// Wrapper halaman dengan Suspense (WAJIB untuk useSearchParams)
 export default function LoginPage() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4">
@@ -116,13 +115,7 @@ export default function LoginPage() {
         <p className="mt-2 text-sm text-gray-600">Fleet & Delivery Management System</p>
       </div>
 
-      <Suspense fallback={
-        <div className="flex items-center justify-center w-full max-w-md h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-        </div>
-      }>
-        <LoginForm />
-      </Suspense>
+      <LoginForm />
 
       <div className="mt-8 text-center text-xs text-gray-500">
         <p>Demo Credentials:</p>
