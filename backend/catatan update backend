@@ -1,0 +1,486 @@
+# MILESTONE 3 — DRIVER MANAGEMENT
+
+Buat:
+
+```text
+GET    /api/drivers
+POST   /api/drivers
+GET    /api/drivers/{id}
+PUT    /api/drivers/{id}
+DELETE /api/drivers/{id}
+```
+
+Data:
+
+```text
+employee_id
+name
+phone
+email
+license_number
+license_expiry
+status
+```
+
+Tambahkan statistics:
+
+* Total deliveries
+* Completed
+* Failed
+* Rating
+
+### Frontend:
+
+```text
+Drivers
+ ↓
+Driver List
+ ↓
+Add Driver
+ ↓
+Edit Driver
+ ↓
+Driver Detail
+ ↓
+Performance
+```
+
+---
+
+# MILESTONE 4 — DELIVERY ORDER
+
+Buat:
+
+```text
+GET  /api/deliveries
+POST /api/deliveries
+GET  /api/deliveries/{id}
+PUT  /api/deliveries/{id}
+```
+
+Data:
+
+```text
+order_number
+customer_name
+customer_phone
+pickup_address
+destination_address
+package_description
+package_weight
+package_quantity
+delivery_date
+priority
+driver_id
+vehicle_id
+status
+notes
+```
+
+Status:
+
+```text
+pending
+assigned
+pickup
+on_delivery
+delivered
+failed
+cancelled
+```
+
+### Frontend:
+
+```text
+Deliveries
+ ↓
+Delivery List
+ ↓
+Create Delivery
+ ↓
+Delivery Detail
+```
+
+---
+
+# MILESTONE 5 — ASSIGNMENT SYSTEM
+
+Buat:
+
+```text
+POST /api/deliveries/{id}/assign
+```
+
+Dispatcher dapat memilih:
+
+* Driver
+* Vehicle
+
+Backend harus mengecek:
+
+* Driver aktif
+* Vehicle aktif
+* Driver tidak sedang dipakai
+* Vehicle tidak sedang dipakai
+* Vehicle tidak maintenance
+
+### Frontend:
+
+```text
+Delivery Detail
+ ↓
+Assign Driver
+ ↓
+Assign Vehicle
+ ↓
+Confirm
+ ↓
+API
+ ↓
+Status = Assigned
+```
+
+---
+
+# MILESTONE 6 — DELIVERY STATUS
+
+Buat:
+
+```text
+POST /api/deliveries/{id}/status
+GET  /api/deliveries/{id}/history
+```
+
+Validasi state transition.
+
+Contoh:
+
+```text
+Pending
+ ↓
+Assigned
+ ↓
+Pickup
+ ↓
+On Delivery
+ ↓
+Delivered
+```
+
+Simpan history ke:
+
+```text
+delivery_status_histories
+```
+
+### Frontend:
+
+Tampilkan delivery timeline secara realtime setelah status berubah.
+
+---
+
+# MILESTONE 7 — GPS TRACKING
+
+Buat:
+
+```text
+POST /api/tracking/location
+GET  /api/tracking
+GET  /api/tracking/{vehicleId}
+```
+
+Data:
+
+```text
+vehicle_id
+driver_id
+latitude
+longitude
+speed
+timestamp
+```
+
+Simpan location history.
+
+### Frontend:
+
+Buat:
+
+```text
+Tracking
+ ↓
+Map
+ ↓
+Vehicle Marker
+ ↓
+Vehicle Detail
+ ↓
+Current Location
+```
+
+Gunakan Leaflet + OpenStreetMap.
+
+Jika WebSocket belum dibuat, gunakan polling terlebih dahulu.
+
+---
+
+# MILESTONE 8 — PROOF OF DELIVERY
+
+Buat:
+
+```text
+POST /api/deliveries/{id}/proof
+GET  /api/deliveries/{id}/proof
+```
+
+Data:
+
+```text
+recipient_name
+photo
+signature
+latitude
+longitude
+delivered_at
+```
+
+### Frontend:
+
+Driver:
+
+```text
+Delivery
+ ↓
+Complete Delivery
+ ↓
+Recipient
+ ↓
+Signature
+ ↓
+Photo
+ ↓
+Submit
+ ↓
+Delivered
+```
+
+---
+
+# MILESTONE 9 — MAINTENANCE
+
+Buat:
+
+```text
+GET    /api/maintenance
+POST   /api/maintenance
+GET    /api/maintenance/{id}
+PUT    /api/maintenance/{id}
+DELETE /api/maintenance/{id}
+```
+
+### Frontend:
+
+```text
+Maintenance
+ ↓
+List
+ ↓
+Add Maintenance
+ ↓
+Vehicle History
+ ↓
+Maintenance Cost
+```
+
+---
+
+# MILESTONE 10 — FUEL
+
+Buat:
+
+```text
+GET  /api/fuel
+POST /api/fuel
+GET  /api/fuel/{id}
+PUT  /api/fuel/{id}
+```
+
+Hitung:
+
+* Total fuel
+* Total cost
+* Average consumption
+* Cost/km
+
+### Frontend:
+
+Tampilkan:
+
+* Fuel table
+* Fuel form
+* Fuel statistics
+* Charts
+
+---
+
+# MILESTONE 11 — NOTIFICATION
+
+Buat:
+
+```text
+GET /api/notifications
+POST /api/notifications/{id}/read
+POST /api/notifications/read-all
+```
+
+Notification:
+
+* Delivery assigned
+* Delivery completed
+* Maintenance reminder
+* License expiry
+* Delivery failed
+
+### Frontend:
+
+Buat notification dropdown dan notification page.
+
+---
+
+# MILESTONE 12 — ANALYTICS
+
+Buat:
+
+```text
+GET /api/analytics/dashboard
+GET /api/analytics/deliveries
+GET /api/analytics/vehicles
+GET /api/analytics/drivers
+GET /api/analytics/fuel
+GET /api/analytics/maintenance
+```
+
+Data harus siap digunakan oleh chart frontend.
+
+### Frontend:
+
+Dashboard menampilkan:
+
+* Total vehicles
+* Total drivers
+* Active deliveries
+* Completed deliveries
+* Maintenance
+* Delivery chart
+* Vehicle utilization
+* Driver performance
+* Fuel cost
+
+---
+
+# MILESTONE 13 — AUDIT LOG
+
+Buat:
+
+```text
+GET /api/audit-logs
+```
+
+Catat:
+
+* Login
+* Create
+* Update
+* Delete
+* Assignment
+* Status change
+* Proof submission
+
+### Frontend:
+
+Buat halaman:
+
+```text
+Audit Logs
+ ↓
+Table
+ ↓
+Search
+ ↓
+Filter
+ ↓
+Detail
+```
+
+---
+
+# MILESTONE 14 — TESTING + SECURITY
+
+Setelah seluruh fitur selesai:
+
+* Test authentication
+* Test authorization
+* Test CRUD
+* Test delivery workflow
+* Test assignment
+* Test tracking
+* Test proof
+* Test validation
+* Test file upload
+
+Perbaiki:
+
+* Security issue
+* Query inefficiency
+* N+1 query
+* Validation
+* Error handling
+
+---
+
+# ATURAN KOMUNIKASI FRONTEND ↔ BACKEND
+
+Setiap selesai milestone, berikan kepada Frontend Developer:
+
+1. Endpoint
+2. HTTP method
+3. Authentication requirement
+4. Request body
+5. Query parameter
+6. Response JSON
+7. Error response
+8. Contoh penggunaan
+
+Jangan mengubah struktur response API secara tiba-tiba.
+
+Jika API perlu diubah, dokumentasikan perubahan terlebih dahulu.
+
+---
+
+# FINAL FLOW
+
+Backend harus mendukung flow:
+
+```text
+Login
+ ↓
+Dashboard
+ ↓
+Create Delivery
+ ↓
+Assign Driver + Vehicle
+ ↓
+Driver receives task
+ ↓
+Driver sends location
+ ↓
+Driver updates status
+ ↓
+Proof of Delivery
+ ↓
+Delivered
+ ↓
+Analytics
+ ↓
+Audit Log
+```

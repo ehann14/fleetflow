@@ -1,0 +1,452 @@
+# MILESTONE 3 — DRIVER MANAGEMENT
+
+Gunakan:
+
+```text
+GET    /api/drivers
+POST   /api/drivers
+GET    /api/drivers/{id}
+PUT    /api/drivers/{id}
+DELETE /api/drivers/{id}
+```
+
+Buat:
+
+* Driver list
+* Driver form
+* Driver detail
+* Driver statistics
+* Performance chart
+
+---
+
+# MILESTONE 4 — DELIVERY
+
+Gunakan:
+
+```text
+GET  /api/deliveries
+POST /api/deliveries
+GET  /api/deliveries/{id}
+PUT  /api/deliveries/{id}
+```
+
+Buat:
+
+* Delivery list
+* Search
+* Filter
+* Pagination
+* Create delivery
+* Delivery detail
+
+Status badge:
+
+```text
+Pending
+Assigned
+Pickup
+On Delivery
+Delivered
+Failed
+Cancelled
+```
+
+---
+
+# MILESTONE 5 — ASSIGNMENT
+
+Gunakan:
+
+```text
+POST /api/deliveries/{id}/assign
+```
+
+Buat UI:
+
+```text
+Delivery Detail
+ ↓
+Assign
+ ↓
+Select Driver
+ ↓
+Select Vehicle
+ ↓
+Confirm
+ ↓
+API
+ ↓
+Assigned
+```
+
+Driver dan vehicle harus berasal dari API.
+
+---
+
+# MILESTONE 6 — STATUS WORKFLOW
+
+Gunakan:
+
+```text
+POST /api/deliveries/{id}/status
+GET  /api/deliveries/{id}/history
+```
+
+Buat delivery timeline:
+
+```text
+Order Created
+ ↓
+Assigned
+ ↓
+Pickup
+ ↓
+On Delivery
+ ↓
+Delivered
+```
+
+Button status harus menyesuaikan status saat ini.
+
+Jangan memberikan button untuk status transition yang tidak valid.
+
+---
+
+# MILESTONE 7 — TRACKING
+
+Backend menyediakan:
+
+```text
+POST /api/tracking/location
+GET  /api/tracking
+GET  /api/tracking/{vehicleId}
+```
+
+Buat halaman:
+
+```text
+Tracking
+ ↓
+Interactive Map
+ ↓
+Vehicle Marker
+ ↓
+Vehicle Detail
+```
+
+Gunakan:
+
+**Leaflet + OpenStreetMap**
+
+Tampilkan:
+
+* Driver
+* Vehicle
+* Plate
+* Status
+* Latitude
+* Longitude
+* Last update
+* Destination
+
+Jika backend menggunakan polling, refresh lokasi secara berkala.
+
+Jika backend menyediakan WebSocket, gunakan realtime update.
+
+---
+
+# MILESTONE 8 — PROOF OF DELIVERY
+
+Gunakan:
+
+```text
+POST /api/deliveries/{id}/proof
+GET  /api/deliveries/{id}/proof
+```
+
+Buat form:
+
+* Recipient name
+* Photo
+* Signature
+* Submit
+
+Flow:
+
+```text
+On Delivery
+ ↓
+Complete
+ ↓
+Proof Form
+ ↓
+Submit
+ ↓
+Delivered
+```
+
+Tampilkan preview foto dan signature.
+
+---
+
+# MILESTONE 9 — MAINTENANCE
+
+Gunakan:
+
+```text
+GET    /api/maintenance
+POST   /api/maintenance
+GET    /api/maintenance/{id}
+PUT    /api/maintenance/{id}
+DELETE /api/maintenance/{id}
+```
+
+Buat:
+
+* Maintenance list
+* Add
+* Edit
+* Delete
+* Vehicle history
+* Cost summary
+* Upcoming maintenance warning
+
+---
+
+# MILESTONE 10 — FUEL
+
+Gunakan:
+
+```text
+GET  /api/fuel
+POST /api/fuel
+GET  /api/fuel/{id}
+PUT  /api/fuel/{id}
+```
+
+Buat:
+
+* Fuel records
+* Add fuel
+* Edit fuel
+* Statistics
+* Charts
+
+Tampilkan:
+
+* Total liters
+* Total cost
+* Average consumption
+* Cost/km
+
+---
+
+# MILESTONE 11 — NOTIFICATION
+
+Gunakan:
+
+```text
+GET /api/notifications
+POST /api/notifications/{id}/read
+POST /api/notifications/read-all
+```
+
+Buat:
+
+* Notification dropdown
+* Notification page
+* Unread counter
+* Mark as read
+* Mark all as read
+
+---
+
+# MILESTONE 12 — ANALYTICS
+
+Gunakan:
+
+```text
+GET /api/analytics/dashboard
+GET /api/analytics/deliveries
+GET /api/analytics/vehicles
+GET /api/analytics/drivers
+GET /api/analytics/fuel
+GET /api/analytics/maintenance
+```
+
+Buat dashboard profesional:
+
+### Cards
+
+* Total Vehicles
+* Active Vehicles
+* Maintenance
+* Total Drivers
+* Active Deliveries
+* Completed Deliveries
+
+### Charts
+
+* Delivery Performance
+* Delivery Status
+* Vehicle Utilization
+* Driver Performance
+* Fuel Consumption
+* Maintenance Cost
+
+Tambahkan filter:
+
+```text
+Today
+This Week
+This Month
+Custom Range
+```
+
+---
+
+# MILESTONE 13 — AUDIT LOG
+
+Gunakan:
+
+```text
+GET /api/audit-logs
+```
+
+Buat:
+
+* Audit table
+* Search
+* Filter
+* Pagination
+* Detail
+
+---
+
+# MILESTONE 14 — POLISH + TESTING
+
+Setelah seluruh API terintegrasi:
+
+Periksa:
+
+* Loading state
+* Error state
+* Empty state
+* Form validation
+* Responsive design
+* Mobile
+* Tablet
+* Desktop
+* Authentication
+* Authorization
+* API error handling
+
+Optimalkan:
+
+* API request
+* Caching
+* Component reuse
+* Rendering
+* Bundle size
+
+---
+
+# COMPONENT STRUCTURE
+
+Gunakan:
+
+```text
+src/
+├── app/
+├── components/
+│   ├── ui/
+│   ├── layout/
+│   ├── dashboard/
+│   ├── delivery/
+│   ├── vehicle/
+│   ├── driver/
+│   ├── tracking/
+│   ├── maintenance/
+│   ├── fuel/
+│   └── notification/
+├── services/
+├── hooks/
+├── types/
+├── utils/
+└── lib/
+```
+
+API logic harus berada di:
+
+```text
+services/
+```
+
+Jangan melakukan request API langsung di setiap component.
+
+---
+
+# API CONTRACT
+
+Gunakan environment variable:
+
+```env
+NEXT_PUBLIC_API_URL=http://localhost:8080/api
+```
+
+Jangan hardcode URL backend.
+
+Response API mengikuti:
+
+```json
+{
+  "success": true,
+  "message": "...",
+  "data": {}
+}
+```
+
+Error:
+
+```json
+{
+  "success": false,
+  "message": "...",
+  "errors": {}
+}
+```
+
+Jangan mengubah struktur response dari frontend.
+
+---
+
+# FINAL USER FLOW
+
+Frontend harus menghasilkan pengalaman:
+
+```text
+Login
+ ↓
+Dashboard
+ ↓
+Create Delivery
+ ↓
+Assign Driver + Vehicle
+ ↓
+Driver receives task
+ ↓
+Tracking
+ ↓
+Update Status
+ ↓
+Proof of Delivery
+ ↓
+Delivered
+ ↓
+Analytics Updated
+```
+
+Prioritaskan integrasi API yang benar, UX yang bagus, responsive design, dan code yang maintainable.
+
+Jangan membuat dummy functionality yang terlihat bekerja tetapi tidak terhubung dengan backend.
