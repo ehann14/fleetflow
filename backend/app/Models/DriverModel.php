@@ -18,12 +18,21 @@ class DriverModel extends Model
         'total_deliveries', 'completed_deliveries', 'failed_deliveries', 'rating',
     ];
 
+    protected array $casts = [
+        'total_deliveries'     => 'integer',
+        'completed_deliveries' => 'integer',
+        'failed_deliveries'    => 'integer',
+        'rating'               => 'float',
+    ];
+
     protected $useTimestamps = true;
     protected $dateFormat    = 'datetime';
     protected $createdField  = 'created_at';
     protected $updatedField  = 'updated_at';
 
+    // PERBAIKAN: Tambahkan 'id' agar placeholder {id} di is_unique dikenali
     protected $validationRules = [
+        'id'             => 'permit_empty|integer',
         'employee_id'    => 'required|max_length[30]|is_unique[drivers.employee_id,id,{id}]',
         'name'           => 'required|max_length[100]',
         'phone'          => 'required|max_length[20]',
@@ -34,20 +43,11 @@ class DriverModel extends Model
     ];
 
     protected $validationMessages = [
-        'employee_id' => [
-            'is_unique' => 'ID karyawan sudah digunakan',
-        ],
-        'email' => [
-            'is_unique' => 'Email sudah terdaftar',
-        ],
-        'license_number' => [
-            'is_unique' => 'Nomor SIM sudah terdaftar',
-        ],
+        'employee_id' => ['is_unique' => 'ID karyawan sudah digunakan'],
+        'email'       => ['is_unique' => 'Email sudah terdaftar'],
+        'license_number' => ['is_unique' => 'Nomor SIM sudah terdaftar'],
     ];
 
-    /**
-     * Terapkan search + filter status ke query, dipakai oleh controller.
-     */
     public function scopeSearchAndFilter(string $search = '', string $status = '')
     {
         if ($search !== '') {
@@ -66,10 +66,6 @@ class DriverModel extends Model
         return $this;
     }
 
-    /**
-     * Hitung ulang rating rata-rata dari (completed / total) sebagai proxy
-     * sederhana selama modul Delivery belum menyediakan rating asli.
-     */
     public function recalculateStats(int $driverId, int $completed, int $failed): void
     {
         $total  = $completed + $failed;

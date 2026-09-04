@@ -1,10 +1,14 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
-import { ApiError, ApiResponse, PaginatedResponse, Vehicle } from '@/types';
+import { ApiError, ApiResponse, PaginatedResponse, Vehicle, Driver } from '@/types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api';
-const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK === 'true';
 
-// Mock Data untuk Development
+// UBAH INI MENJADI FALSE agar terhubung ke backend CodeIgniter
+const USE_MOCK = false; 
+
+// ==========================================
+// MOCK DATA untuk Development
+// ==========================================
 let mockVehicles: Vehicle[] = [
   {
     id: 1, vehicle_code: 'VH-001', plate_number: 'B 1234 CD', brand: 'Toyota', model: 'HiAce',
@@ -26,13 +30,40 @@ let mockVehicles: Vehicle[] = [
   }
 ];
 
+let mockDrivers: Driver[] = [
+  {
+    id: 1, employee_id: 'EMP-001', name: 'Mike Driver', phone: '081234567890',
+    email: 'driver@fleetflow.com', license_number: 'SIM-B2-001', license_expiry: '2027-05-01',
+    status: 'active', total_deliveries: 120, completed_deliveries: 112, failed_deliveries: 8,
+    rating: 4.6, created_at: '2024-01-01', updated_at: '2024-01-01'
+  },
+  {
+    id: 2, employee_id: 'EMP-002', name: 'Budi Santoso', phone: '081298765432',
+    email: 'budi@fleetflow.com', license_number: 'SIM-B2-002', license_expiry: '2026-11-15',
+    status: 'active', total_deliveries: 88, completed_deliveries: 80, failed_deliveries: 8,
+    rating: 4.3, created_at: '2024-01-01', updated_at: '2024-01-01'
+  },
+  {
+    id: 3, employee_id: 'EMP-003', name: 'Siti Aminah', phone: '081345678912',
+    email: 'siti@fleetflow.com', license_number: 'SIM-B2-003', license_expiry: '2025-08-20',
+    status: 'on_leave', total_deliveries: 45, completed_deliveries: 40, failed_deliveries: 5,
+    rating: 4.1, created_at: '2024-01-01', updated_at: '2024-01-01'
+  },
+];
+
+// ==========================================
+// API SERVICE CLASS
+// ==========================================
 class ApiService {
   private api: AxiosInstance;
 
   constructor() {
     this.api = axios.create({
       baseURL: API_URL,
-      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json', 
+        'Accept': 'application/json' 
+      },
       timeout: 30000,
     });
     this.setupInterceptors();
@@ -41,13 +72,18 @@ class ApiService {
   private setupInterceptors() {
     this.api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
       const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-      if (token && config.headers) config.headers.Authorization = `Bearer ${token}`;
+      if (token && config.headers) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
       return config;
     });
+    
     this.api.interceptors.response.use(
       (response) => response,
       (error: AxiosError<ApiError>) => {
-        if (error.response?.status === 401) this.handleUnauthorized();
+        if (error.response?.status === 401) {
+          this.handleUnauthorized();
+        }
         return Promise.reject(error);
       }
     );
@@ -62,9 +98,15 @@ class ApiService {
   }
 
   // --- AUTH ---
-  async login(email: string, password: string) { return this.api.post('/auth/login', { email, password }); }
-  async getMe() { return this.api.get('/auth/me'); }
-  async logout() { return this.api.post('/auth/logout'); }
+  async login(email: string, password: string) { 
+    return this.api.post('/auth/login', { email, password }); 
+  }
+  async getMe() { 
+    return this.api.get('/auth/me'); 
+  }
+  async logout() { 
+    return this.api.post('/auth/logout'); 
+  }
 
   // --- VEHICLES ---
   async getVehicles(page = 1, search = '', status = ''): Promise<PaginatedResponse<Vehicle>> {
@@ -119,6 +161,85 @@ class ApiService {
       return { success: true, message: 'Vehicle deleted', data: null };
     }
     const response = await this.api.delete(`/vehicles/${id}`);
+    return response.data;
+  }
+
+  // --- DRIVERS ---
+  async getDrivers(page = 1, search = '', status = ''): Promise<PaginatedResponse<Driver>> {
+    if (USE_MOCK) {
+      await new Promise(r => setTimeout(r, 500));
+      let filtered = mockDrivers;
+      if (search) filtered = filtered.filter(d =>
+        d.name.toLowerCase().includes(search.toLowerCase()) ||
+        d.employee_id.toLowerCase().includes(search.toLowerCase())
+      );
+      if (status) filtered = filtered.filter(d => d.status === status);
+
+      const perPage = 10;
+      const total = filtered.length;
+      const data = filtered.slice((page - 1) * perPage, page * perPage);
+
+      return {
+        success: true, message: 'Success', data,
+        meta: { current_page: page, last_page: Math.ceil(total / perPage) || 1, per_page: perPage, total }
+      };
+    }
+    const response = await this.api.get('/drivers', { params: { page, search, status } });
+    return response.data;
+  }
+
+  async getDriver(id: number): Promise<ApiResponse<Driver>> {
+    if (USE_MOCK) {
+      await new Promise(r => setTimeout(r, 300));
+      const driver = mockDrivers.find(d => d.id === id);
+      if (!driver) throw new Error('Driver not found');
+      return { success: true, message: 'Success', data: driver };
+    }
+    const response = await this.api.get(`/drivers/${id}`);
+    return response.data;
+  }
+
+  async createDriver(data: Partial<Driver>): Promise<ApiResponse<Driver>> {
+    if (USE_MOCK) {
+      await new Promise(r => setTimeout(r, 500));
+      const newDriver: Driver = {
+        ...data,
+        id: Date.now(),
+        total_deliveries: 0, completed_deliveries: 0, failed_deliveries: 0, rating: 0,
+        created_at: new Date().toISOString(), updated_at: new Date().toISOString()
+      } as Driver;
+      mockDrivers.unshift(newDriver);
+      return { success: true, message: 'Driver created', data: newDriver };
+    }
+    const response = await this.api.post('/drivers', data);
+    return response.data;
+  }
+
+  async updateDriver(id: number, data: Partial<Driver>): Promise<ApiResponse<Driver>> {
+    if (USE_MOCK) {
+      await new Promise(r => setTimeout(r, 500));
+      const index = mockDrivers.findIndex(d => d.id === id);
+      if (index !== -1) {
+        mockDrivers[index] = { ...mockDrivers[index], ...data, updated_at: new Date().toISOString() };
+        return { success: true, message: 'Driver updated', data: mockDrivers[index] };
+      }
+      throw new Error('Driver not found');
+    }
+    
+    // Log sederhana untuk memastikan data yang dikirim frontend benar
+    console.log(`[API] Mengirim update untuk driver ID ${id}:`, data);
+    
+    const response = await this.api.put(`/drivers/${id}`, data);
+    return response.data;
+  }
+
+  async deleteDriver(id: number): Promise<ApiResponse<any>> {
+    if (USE_MOCK) {
+      await new Promise(r => setTimeout(r, 500));
+      mockDrivers = mockDrivers.filter(d => d.id !== id);
+      return { success: true, message: 'Driver deleted', data: null };
+    }
+    const response = await this.api.delete(`/drivers/${id}`);
     return response.data;
   }
 }

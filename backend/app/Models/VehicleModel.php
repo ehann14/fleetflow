@@ -18,6 +18,13 @@ class VehicleModel extends Model
         'last_service', 'next_service',
     ];
 
+    // PERBAIKAN: Tambahkan kata kunci 'array' di sini
+    protected array $casts = [
+        'year'            => 'integer',
+        'capacity'        => 'integer',
+        'current_mileage' => 'integer',
+    ];
+
     protected $useTimestamps = true;
     protected $dateFormat    = 'datetime';
     protected $createdField  = 'created_at';
@@ -47,9 +54,6 @@ class VehicleModel extends Model
         ],
     ];
 
-    /**
-     * Terapkan search + filter status ke query, dipakai oleh controller.
-     */
     public function scopeSearchAndFilter(string $search = '', string $status = '')
     {
         if ($search !== '') {

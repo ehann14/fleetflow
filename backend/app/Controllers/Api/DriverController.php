@@ -8,7 +8,7 @@ use App\Models\DriverModel;
 class DriverController extends BaseController
 {
     protected $driverModel;
-    protected $writeRoles = ['admin', 'dispatcher', 'manager']; // driver: read-only
+    protected $writeRoles = ['admin', 'dispatcher', 'manager'];
 
     public function __construct()
     {
@@ -18,14 +18,12 @@ class DriverController extends BaseController
     private function authorize(array $allowedRoles)
     {
         $userData = $this->request->userData ?? null;
-
         if (!$userData || !in_array($userData->role, $allowedRoles, true)) {
             return $this->response->setStatusCode(403)->setJSON([
                 'success' => false,
-                'message' => 'Forbidden: Anda tidak memiliki akses untuk aksi ini',
+                'message' => 'Forbidden: Anda tidak memiliki akses',
             ]);
         }
-
         return null;
     }
 
@@ -37,10 +35,8 @@ class DriverController extends BaseController
         $status  = (string) ($this->request->getGet('status') ?? '');
 
         $this->driverModel->scopeSearchAndFilter($search, $status);
-
         $total   = $this->driverModel->countAllResults(false);
-        $drivers = $this->driverModel->orderBy('created_at', 'DESC')
-            ->paginate($perPage, 'default', $page);
+        $drivers = $this->driverModel->orderBy('created_at', 'DESC')->paginate($perPage, 'default', $page);
 
         return $this->response->setJSON([
             'success' => true,
@@ -58,46 +54,27 @@ class DriverController extends BaseController
     public function show($id = null)
     {
         $driver = $this->driverModel->find($id);
-
         if (!$driver) {
-            return $this->response->setStatusCode(404)->setJSON([
-                'success' => false,
-                'message' => 'Driver tidak ditemukan',
-            ]);
+            return $this->response->setStatusCode(404)->setJSON(['success' => false, 'message' => 'Driver tidak ditemukan']);
         }
-
         return $this->response->setJSON(['success' => true, 'message' => 'Success', 'data' => $driver]);
     }
 
     public function create()
     {
         if ($forbidden = $this->authorize($this->writeRoles)) return $forbidden;
-
         $data = $this->request->getJSON(true);
 
         if (empty($data)) {
-            return $this->response->setStatusCode(400)->setJSON([
-                'success' => false,
-                'message' => 'Request body kosong. Pastikan Content-Type: application/json',
-            ]);
+            return $this->response->setStatusCode(400)->setJSON(['success' => false, 'message' => 'Data kosong']);
         }
 
         if (!$this->driverModel->validate($data)) {
-            return $this->response->setStatusCode(400)->setJSON([
-                'success' => false,
-                'message' => 'Validasi gagal',
-                'errors'  => $this->driverModel->errors(),
-            ]);
+            return $this->response->setStatusCode(400)->setJSON(['success' => false, 'message' => 'Validasi gagal', 'errors' => $this->driverModel->errors()]);
         }
 
-        $id     = $this->driverModel->insert($data, true);
-        $driver = $this->driverModel->find($id);
-
-        return $this->response->setStatusCode(201)->setJSON([
-            'success' => true,
-            'message' => 'Driver berhasil ditambahkan',
-            'data'    => $driver,
-        ]);
+        $id = $this->driverModel->insert($data, true);
+        return $this->response->setStatusCode(201)->setJSON(['success' => true, 'message' => 'Driver berhasil ditambahkan', 'data' => $this->driverModel->find($id)]);
     }
 
     public function update($id = null)
@@ -106,58 +83,52 @@ class DriverController extends BaseController
 
         $driver = $this->driverModel->find($id);
         if (!$driver) {
-            return $this->response->setStatusCode(404)->setJSON([
-                'success' => false,
-                'message' => 'Driver tidak ditemukan',
-            ]);
+            return $this->response->setStatusCode(404)->setJSON(['success' => false, 'message' => 'Driver tidak ditemukan']);
         }
 
         $data = $this->request->getJSON(true);
+
         if (empty($data)) {
+            return $this->response->setStatusCode(400)->setJSON(['success' => false, 'message' => 'Data kosong']);
+        }
+
+        // PENTING: Masukkan ID ke dalam data agar validasi is_unique[...,id,{id}] bisa bekerja
+        // CodeIgniter butuh field 'id' di dalam array $data untuk mengganti placeholder {id}
+        $data['id'] = (int) $id;
+
+        // Hapus hanya field sistem yang tidak boleh di-update manual
+        unset($data['created_at'], $data['updated_at']);
+
+        // Eksekusi Update
+        // Model akan otomatis memvalidasi $data (yang sekarang sudah punya 'id')
+        $isUpdated = $this->driverModel->update($id, $data);
+
+        if (!$isUpdated) {
+            // Jika gagal, ambil error dari model
             return $this->response->setStatusCode(400)->setJSON([
                 'success' => false,
-                'message' => 'Request body kosong. Pastikan Content-Type: application/json',
+                'message' => 'Validasi gagal atau update gagal',
+                'errors'  => $this->driverModel->errors()
             ]);
         }
 
-        $data['id'] = $id; // dipakai oleh rule is_unique[...,{id}]
-
-        if (!$this->driverModel->validate($data)) {
-            return $this->response->setStatusCode(400)->setJSON([
-                'success' => false,
-                'message' => 'Validasi gagal',
-                'errors'  => $this->driverModel->errors(),
-            ]);
-        }
-
-        unset($data['id']);
-        $this->driverModel->update($id, $data);
-        $updated = $this->driverModel->find($id);
+        $updatedDriver = $this->driverModel->find($id);
 
         return $this->response->setJSON([
             'success' => true,
             'message' => 'Driver berhasil diperbarui',
-            'data'    => $updated,
+            'data'    => $updatedDriver,
         ]);
     }
 
     public function delete($id = null)
     {
         if ($forbidden = $this->authorize($this->writeRoles)) return $forbidden;
-
         $driver = $this->driverModel->find($id);
         if (!$driver) {
-            return $this->response->setStatusCode(404)->setJSON([
-                'success' => false,
-                'message' => 'Driver tidak ditemukan',
-            ]);
+            return $this->response->setStatusCode(404)->setJSON(['success' => false, 'message' => 'Driver tidak ditemukan']);
         }
-
         $this->driverModel->delete($id);
-
-        return $this->response->setJSON([
-            'success' => true,
-            'message' => 'Driver berhasil dihapus',
-        ]);
+        return $this->response->setJSON(['success' => true, 'message' => 'Driver berhasil dihapus']);
     }
 }

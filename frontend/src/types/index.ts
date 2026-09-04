@@ -29,6 +29,25 @@ export interface Vehicle {
   updated_at: string;
 }
 
+export type DriverStatus = 'active' | 'inactive' | 'on_leave';
+
+export interface Driver {
+  id: number;
+  employee_id: string;
+  name: string;
+  phone: string;
+  email: string;
+  license_number: string;
+  license_expiry: string;
+  status: DriverStatus;
+  total_deliveries: number;
+  completed_deliveries: number;
+  failed_deliveries: number;
+  rating: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface PaginatedResponse<T> {
   success: boolean;
   message: string;
