@@ -80,24 +80,29 @@ class DeliveryModel extends Model
         return $prefix . str_pad((string) $nextNumber, 4, '0', STR_PAD_LEFT);
     }
 
+    /**
+     * Scope untuk pencarian dan filter.
+     * PERBAIKAN: Menambahkan prefix 'deliveries.' untuk mencegah ambiguous column 
+     * saat method ini dipanggil setelah withRelations() yang melakukan JOIN.
+     */
     public function scopeSearchAndFilter(string $search = '', string $status = '', string $priority = '')
     {
         if ($search !== '') {
             $this->groupStart()
-                ->like('order_number', $search)
-                ->orLike('customer_name', $search)
-                ->orLike('customer_phone', $search)
-                ->orLike('pickup_address', $search)
-                ->orLike('destination_address', $search)
+                ->like('deliveries.order_number', $search)
+                ->orLike('deliveries.customer_name', $search)
+                ->orLike('deliveries.customer_phone', $search)
+                ->orLike('deliveries.pickup_address', $search)
+                ->orLike('deliveries.destination_address', $search)
                 ->groupEnd();
         }
 
         if ($status !== '') {
-            $this->where('status', $status);
+            $this->where('deliveries.status', $status); // FIX: Ditambahkan prefix tabel
         }
 
         if ($priority !== '') {
-            $this->where('priority', $priority);
+            $this->where('deliveries.priority', $priority); // FIX: Ditambahkan prefix tabel untuk konsistensi
         }
 
         return $this;

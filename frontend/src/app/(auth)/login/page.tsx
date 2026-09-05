@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -27,9 +27,6 @@ function LoginForm() {
 
     try {
       await login(email, password);
-      // Navigasi client-side (bukan reload penuh). Cookie token sudah
-      // di-set secara sinkron di dalam login(), jadi middleware tetap
-      // bisa membacanya tanpa perlu window.location.href.
       const redirectTo = searchParams.get('from') || '/dashboard';
       router.replace(redirectTo);
     } catch (err: any) {
@@ -117,7 +114,15 @@ export default function LoginPage() {
         <p className="mt-2 text-sm text-gray-600">Fleet & Delivery Management System</p>
       </div>
 
-      <LoginForm />
+      {/* FIX: Dibungkus Suspense untuk useSearchParams */}
+      <Suspense fallback={
+        <Card className="w-full max-w-md p-8 text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto" />
+          <p className="mt-2 text-sm text-gray-500">Memuat formulir...</p>
+        </Card>
+      }>
+        <LoginForm />
+      </Suspense>
 
       <div className="mt-8 text-center text-xs text-gray-500">
         <p>Demo Credentials:</p>
