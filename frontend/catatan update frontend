@@ -1,37 +1,3 @@
-# MILESTONE 4 — DELIVERY
-
-Gunakan:
-
-```text
-GET  /api/deliveries
-POST /api/deliveries
-GET  /api/deliveries/{id}
-PUT  /api/deliveries/{id}
-```
-
-Buat:
-
-* Delivery list
-* Search
-* Filter
-* Pagination
-* Create delivery
-* Delivery detail
-
-Status badge:
-
-```text
-Pending
-Assigned
-Pickup
-On Delivery
-Delivered
-Failed
-Cancelled
-```
-
----
-
 # MILESTONE 5 — ASSIGNMENT
 
 Gunakan:

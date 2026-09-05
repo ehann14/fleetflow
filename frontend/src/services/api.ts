@@ -3,8 +3,8 @@ import { ApiError, ApiResponse, PaginatedResponse, Vehicle, Driver, Delivery } f
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api';
 
-// UBAH INI MENJADI FALSE agar terhubung ke backend CodeIgniter
-const USE_MOCK = false; 
+// UBAH MENJADI TRUE untuk menggunakan data mock (karena backend endpoint belum ada)
+const USE_MOCK = true; 
 
 // ==========================================
 // MOCK DATA untuk Development
@@ -315,6 +315,28 @@ class ApiService {
       throw new Error('Delivery not found');
     }
     const response = await this.api.put(`/deliveries/${id}`, data);
+    return response.data;
+  }
+
+  // --- DASHBOARD ---
+  async getDashboardStats() {
+    if (USE_MOCK) {
+      await new Promise(r => setTimeout(r, 500));
+      return {
+        success: true,
+        message: 'Success',
+        data: {
+          total_vehicles: mockVehicles.length,
+          active_drivers: mockDrivers.filter(d => d.status === 'active').length,
+          active_deliveries: mockDeliveries.filter(d => d.status === 'on_delivery' || d.status === 'pending').length,
+          completed_today: 45, // Data mock statis untuk contoh
+        }
+      };
+    }
+    
+    // Panggil ke endpoint backend CodeIgniter Anda
+    // Pastikan di CodeIgniter Anda sudah membuat route/controller untuk 'dashboard/stats'
+    const response = await this.api.get('/dashboard/stats');
     return response.data;
   }
 }
