@@ -9,12 +9,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DeliveryStatusBadge, DeliveryPriorityBadge } from '@/components/ui/delivery-status-badge';
 import {
   ArrowLeft, Loader2, Phone, User, MapPin, Package, Truck,
-  Calendar, StickyNote, Save,
+  Calendar, StickyNote,
 } from 'lucide-react';
-
-const STATUS_FLOW: DeliveryStatus[] = [
-  'pending', 'assigned', 'pickup', 'on_delivery', 'delivered', 'failed', 'cancelled',
-];
 
 export default function DeliveryDetailPage() {
   const params = useParams();
@@ -25,25 +21,19 @@ export default function DeliveryDetailPage() {
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [errors, setErrors] = useState<Record<string, string[]>>({});
-
-  const [assignForm, setAssignForm] = useState<{
-    status: DeliveryStatus;
-    driver_id?: number;
-    vehicle_id?: number;
-  }>({ status: 'pending' });
+  
+  // State untuk Modal Assign
+  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+  const [assignDriverId, setAssignDriverId] = useState<number | ''>('');
+  const [assignVehicleId, setAssignVehicleId] = useState<number | ''>('');
+  const [assigning, setAssigning] = useState(false);
+  const [assignError, setAssignError] = useState('');
 
   const fetchDelivery = async () => {
     setLoading(true);
     try {
       const response = await apiService.getDelivery(id);
       setDelivery(response.data);
-      setAssignForm({
-        status: response.data.status,
-        driver_id: response.data.driver_id ?? undefined,
-        vehicle_id: response.data.vehicle_id ?? undefined,
-      });
     } catch (error) {
       console.error('Failed to fetch delivery:', error);
     } finally {
@@ -56,40 +46,49 @@ export default function DeliveryDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  useEffect(() => {
-    const loadOptions = async () => {
-      try {
-        const [driverRes, vehicleRes] = await Promise.all([
-          apiService.getDrivers(1, '', ''),
-          apiService.getVehicles(1, '', ''),
-        ]);
-        setDrivers(driverRes.data);
-        setVehicles(vehicleRes.data);
-      } catch (error) {
-        console.error('Failed to load drivers/vehicles:', error);
-      }
-    };
-    loadOptions();
-  }, []);
-
-  const handleSaveAssignment = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!delivery) return;
-    setSaving(true);
-    setErrors({});
+  const openAssignModal = async () => {
+    setAssignError('');
+    setAssignDriverId('');
+    setAssignVehicleId('');
     try {
-      const response = await apiService.updateDelivery(delivery.id, assignForm);
+      const [driverRes, vehicleRes] = await Promise.all([
+        apiService.getDrivers(1, '', 'active'),
+        apiService.getVehicles(1, '', 'available'),
+      ]);
+      setDrivers(driverRes.data);
+      setVehicles(vehicleRes.data);
+      
+      // Pre-fill jika sudah ada assignment sebelumnya
+      if (delivery?.driver_id) setAssignDriverId(delivery.driver_id);
+      if (delivery?.vehicle_id) setAssignVehicleId(delivery.vehicle_id);
+      
+      setIsAssignModalOpen(true);
+    } catch {
+      alert('Gagal memuat daftar driver/kendaraan');
+    }
+  };
+
+  const handleConfirmAssign = async () => {
+    if (!assignDriverId || !assignVehicleId) {
+      setAssignError('Driver dan kendaraan wajib dipilih');
+      return;
+    }
+    setAssigning(true);
+    setAssignError('');
+    try {
+      const response = await apiService.assignDelivery(id, {
+        driver_id: Number(assignDriverId),
+        vehicle_id: Number(assignVehicleId),
+      });
       setDelivery(response.data);
+      setIsAssignModalOpen(false);
     } catch (error: any) {
       const apiErrors = error.response?.data?.errors;
-      const message = error.response?.data?.message || 'Gagal memperbarui delivery order';
-      if (apiErrors) {
-        setErrors(apiErrors);
-      } else {
-        alert(message);
-      }
+      const message = error.response?.data?.message || 'Gagal melakukan assignment';
+      const firstFieldError = apiErrors ? Object.values(apiErrors).flat()[0] : null;
+      setAssignError((firstFieldError as string) || message);
     } finally {
-      setSaving(false);
+      setAssigning(false);
     }
   };
 
@@ -179,74 +178,90 @@ export default function DeliveryDetailPage() {
           <CardHeader>
             <CardTitle className="text-base">Penugasan &amp; Status</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-2 text-sm text-gray-600 mb-4">
+          <CardContent className="space-y-4">
+            <div className="flex items-center gap-2 text-sm text-gray-600">
               <Truck className="w-4 h-4" />
               {delivery.driver_name ? (
-                <span>{delivery.driver_name} &middot; {delivery.vehicle_code} ({delivery.plate_number})</span>
+                <span className="font-medium text-gray-900">
+                  {delivery.driver_name} &middot; {delivery.vehicle_code} ({delivery.plate_number})
+                </span>
               ) : (
                 <span className="text-gray-400">Belum ada driver/kendaraan yang ditugaskan</span>
               )}
             </div>
 
-            <form onSubmit={handleSaveAssignment} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="text-sm font-medium mb-1 block">Status</label>
-                  <select
-                    className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
-                    value={assignForm.status}
-                    onChange={e => setAssignForm({ ...assignForm, status: e.target.value as DeliveryStatus })}
-                  >
-                    {STATUS_FLOW.map(s => (
-                      <option key={s} value={s}>{s}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-sm font-medium mb-1 block">Driver</label>
-                  <select
-                    className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
-                    value={assignForm.driver_id ?? ''}
-                    onChange={e => setAssignForm({ ...assignForm, driver_id: e.target.value ? Number(e.target.value) : undefined })}
-                  >
-                    <option value="">Belum ditugaskan</option>
-                    {drivers.map(d => (
-                      <option key={d.id} value={d.id}>{d.name} ({d.employee_id})</option>
-                    ))}
-                  </select>
-                  {errors.driver_id && <p className="text-xs text-red-600 mt-1">{errors.driver_id[0]}</p>}
-                </div>
-                <div>
-                  <label className="text-sm font-medium mb-1 block">Kendaraan</label>
-                  <select
-                    className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
-                    value={assignForm.vehicle_id ?? ''}
-                    onChange={e => setAssignForm({ ...assignForm, vehicle_id: e.target.value ? Number(e.target.value) : undefined })}
-                  >
-                    <option value="">Belum ditugaskan</option>
-                    {vehicles.map(v => (
-                      <option key={v.id} value={v.id}>{v.vehicle_code} - {v.plate_number}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
+            <div className="flex items-center gap-2 text-sm">
+              <span className="font-medium">Status Saat Ini:</span>
+              <DeliveryStatusBadge status={delivery.status} />
+            </div>
 
-              <p className="text-xs text-gray-500">
-                Status <strong>Ditugaskan</strong>, <strong>Pengambilan</strong>, dan <strong>Dalam Pengiriman</strong> wajib memiliki driver &amp; kendaraan.
-                Saat status diubah menjadi <strong>Terkirim</strong>/<strong>Gagal</strong>, statistik driver otomatis diperbarui dan kendaraan otomatis kembali <strong>Tersedia</strong>.
+            <div className="pt-4 border-t">
+              <Button onClick={openAssignModal} variant="default">
+                <Truck className="w-4 h-4 mr-2" />
+                {delivery.driver_id ? 'Ubah Penugasan' : 'Tugaskan Driver & Kendaraan'}
+              </Button>
+              <p className="text-xs text-gray-500 mt-2">
+                Tindakan ini akan menetapkan driver dan kendaraan, serta mengubah status menjadi <strong>Assigned</strong>.
+                Pastikan driver dalam status <strong>Active</strong> dan kendaraan <strong>Available</strong>.
               </p>
-
-              <div className="flex justify-end">
-                <Button type="submit" disabled={saving}>
-                  {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-                  Simpan Perubahan
-                </Button>
-              </div>
-            </form>
+            </div>
           </CardContent>
         </Card>
       </div>
+
+      {/* Modal Assign */}
+      {isAssignModalOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+            <div className="flex justify-between items-center p-6 border-b">
+              <h2 className="text-lg font-semibold">Assign Driver & Kendaraan</h2>
+              <Button variant="ghost" size="sm" onClick={() => setIsAssignModalOpen(false)}>✕</Button>
+            </div>
+            <div className="p-6 space-y-4">
+              {assignError && (
+                <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2">
+                  {assignError}
+                </div>
+              )}
+              <div>
+                <label className="text-sm font-medium mb-1 block">Pilih Driver</label>
+                <select
+                  className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
+                  value={assignDriverId}
+                  onChange={e => setAssignDriverId(e.target.value ? Number(e.target.value) : '')}
+                >
+                  <option value="">-- Pilih driver aktif --</option>
+                  {drivers.map(d => (
+                    <option key={d.id} value={d.id}>{d.name} ({d.employee_id})</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-1 block">Pilih Kendaraan</label>
+                <select
+                  className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
+                  value={assignVehicleId}
+                  onChange={e => setAssignVehicleId(e.target.value ? Number(e.target.value) : '')}
+                >
+                  <option value="">-- Pilih kendaraan tersedia --</option>
+                  {vehicles.map(v => (
+                    <option key={v.id} value={v.id}>{v.vehicle_code} - {v.plate_number}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 p-6 border-t">
+              <Button variant="outline" onClick={() => setIsAssignModalOpen(false)} disabled={assigning}>
+                Batal
+              </Button>
+              <Button onClick={handleConfirmAssign} disabled={assigning}>
+                {assigning && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                Konfirmasi
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

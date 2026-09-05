@@ -3,8 +3,8 @@ import { ApiError, ApiResponse, PaginatedResponse, Vehicle, Driver, Delivery } f
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api';
 
-// UBAH MENJADI TRUE untuk menggunakan data mock (karena backend endpoint belum ada)
-const USE_MOCK = true; 
+// UBAH MENJADI FALSE agar terhubung ke backend CodeIgniter
+const USE_MOCK = false; 
 
 // ==========================================
 // MOCK DATA untuk Development
@@ -318,6 +318,12 @@ class ApiService {
     return response.data;
   }
 
+  // --- ASSIGN DELIVERY (BARU DITAMBAHKAN) ---
+  async assignDelivery(id: number, data: { driver_id: number; vehicle_id: number }): Promise<ApiResponse<Delivery>> {
+    const response = await this.api.post(`/deliveries/${id}/assign`, data);
+    return response.data;
+  }
+
   // --- DASHBOARD ---
   async getDashboardStats() {
     if (USE_MOCK) {
@@ -329,13 +335,11 @@ class ApiService {
           total_vehicles: mockVehicles.length,
           active_drivers: mockDrivers.filter(d => d.status === 'active').length,
           active_deliveries: mockDeliveries.filter(d => d.status === 'on_delivery' || d.status === 'pending').length,
-          completed_today: 45, // Data mock statis untuk contoh
+          completed_today: 45,
         }
       };
     }
     
-    // Panggil ke endpoint backend CodeIgniter Anda
-    // Pastikan di CodeIgniter Anda sudah membuat route/controller untuk 'dashboard/stats'
     const response = await this.api.get('/dashboard/stats');
     return response.data;
   }

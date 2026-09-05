@@ -20,6 +20,9 @@ $routes->group('api', ['namespace' => 'App\Controllers\Api'], function($routes) 
         $routes->get('auth/me', 'AuthController::me');
         $routes->post('auth/logout', 'AuthController::logout');
 
+        // Dashboard
+        $routes->get('dashboard/stats', 'DashboardController::stats');
+
         // Vehicles
         $routes->get('vehicles', 'VehicleController::index');
         $routes->post('vehicles', 'VehicleController::create');
@@ -39,6 +42,7 @@ $routes->group('api', ['namespace' => 'App\Controllers\Api'], function($routes) 
         $routes->post('deliveries', 'DeliveryController::create');
         $routes->get('deliveries/(:num)', 'DeliveryController::show/$1');
         $routes->put('deliveries/(:num)', 'DeliveryController::update/$1');
+        $routes->post('deliveries/(:num)/assign', 'DeliveryController::assign/$1');
         
     });
 });

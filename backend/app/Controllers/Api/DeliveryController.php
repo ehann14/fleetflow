@@ -187,6 +187,125 @@ class DeliveryController extends BaseController
     }
 
     /**
+     * Assign driver dan kendaraan ke delivery order.
+     * Validasi: driver aktif, vehicle tidak maintenance/inactive,
+     * driver tidak sedang menangani delivery aktif lain,
+     * vehicle tidak sedang dipakai delivery aktif lain.
+     */
+    public function assign($id = null)
+    {
+        if ($forbidden = $this->authorize($this->writeRoles)) return $forbidden;
+
+        $delivery = $this->deliveryModel->find($id);
+        if (!$delivery) {
+            return $this->response->setStatusCode(404)->setJSON([
+                'success' => false,
+                'message' => 'Delivery order tidak ditemukan',
+            ]);
+        }
+
+        $data = $this->request->getJSON(true);
+
+        if (empty($data['driver_id']) || empty($data['vehicle_id'])) {
+            return $this->response->setStatusCode(400)->setJSON([
+                'success' => false,
+                'message' => 'Validasi gagal',
+                'errors'  => [
+                    'driver_id'  => empty($data['driver_id']) ? ['Driver wajib dipilih'] : [],
+                    'vehicle_id' => empty($data['vehicle_id']) ? ['Kendaraan wajib dipilih'] : [],
+                ],
+            ]);
+        }
+
+        $driverId  = (int) $data['driver_id'];
+        $vehicleId = (int) $data['vehicle_id'];
+
+        $driverModel  = new DriverModel();
+        $vehicleModel = new VehicleModel();
+
+        $driver  = $driverModel->find($driverId);
+        $vehicle = $vehicleModel->find($vehicleId);
+
+        if (!$driver) {
+            return $this->response->setStatusCode(404)->setJSON([
+                'success' => false, 'message' => 'Driver tidak ditemukan',
+            ]);
+        }
+        if (!$vehicle) {
+            return $this->response->setStatusCode(404)->setJSON([
+                'success' => false, 'message' => 'Kendaraan tidak ditemukan',
+            ]);
+        }
+
+        // Driver harus aktif
+        if ($driver['status'] !== 'active') {
+            return $this->response->setStatusCode(422)->setJSON([
+                'success' => false,
+                'message' => 'Driver tidak aktif',
+                'errors'  => ['driver_id' => ["Driver berstatus {$driver['status']}, tidak dapat ditugaskan"]],
+            ]);
+        }
+
+        // Vehicle tidak boleh maintenance / inactive
+        if (in_array($vehicle['status'], ['maintenance', 'inactive'], true)) {
+            return $this->response->setStatusCode(422)->setJSON([
+                'success' => false,
+                'message' => 'Kendaraan tidak tersedia',
+                'errors'  => ['vehicle_id' => ["Kendaraan sedang {$vehicle['status']}"]],
+            ]);
+        }
+
+        $activeStatuses = ['assigned', 'pickup', 'on_delivery'];
+
+        // Driver tidak sedang menangani delivery aktif lain
+        $driverBusy = $this->deliveryModel
+            ->where('driver_id', $driverId)
+            ->whereIn('status', $activeStatuses)
+            ->where('id !=', $id)
+            ->countAllResults();
+
+        if ($driverBusy > 0) {
+            return $this->response->setStatusCode(422)->setJSON([
+                'success' => false,
+                'message' => 'Driver sedang bertugas',
+                'errors'  => ['driver_id' => ['Driver sedang menangani delivery lain']],
+            ]);
+        }
+
+        // Vehicle tidak sedang dipakai delivery aktif lain
+        $vehicleBusy = $this->deliveryModel
+            ->where('vehicle_id', $vehicleId)
+            ->whereIn('status', $activeStatuses)
+            ->where('id !=', $id)
+            ->countAllResults();
+
+        if ($vehicleBusy > 0) {
+            return $this->response->setStatusCode(422)->setJSON([
+                'success' => false,
+                'message' => 'Kendaraan sedang digunakan',
+                'errors'  => ['vehicle_id' => ['Kendaraan sedang digunakan delivery lain']],
+            ]);
+        }
+
+        // Semua lolos → assign
+        $this->deliveryModel->update($id, [
+            'driver_id'  => $driverId,
+            'vehicle_id' => $vehicleId,
+            'status'     => 'assigned',
+        ]);
+
+        $vehicleModel->update($vehicleId, ['status' => 'assigned']);
+
+        $updated = $this->deliveryModel->withRelations()->where('deliveries.id', $id)->first();
+
+        return $this->response->setJSON([
+            'success' => true,
+            'message' => 'Driver dan kendaraan berhasil ditugaskan',
+            'data'    => $updated,
+        ]);
+    }
+
+    /**
      * Sinkronisasi status kendaraan & statistik driver berdasarkan perubahan status delivery.
      */
     private function applyStatusSideEffects(?string $oldStatus, string $newStatus, $driverId, $vehicleId): void
