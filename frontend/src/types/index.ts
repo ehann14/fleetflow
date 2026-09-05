@@ -48,6 +48,41 @@ export interface Driver {
   updated_at: string;
 }
 
+export type DeliveryStatus =
+  | 'pending'
+  | 'assigned'
+  | 'pickup'
+  | 'on_delivery'
+  | 'delivered'
+  | 'failed'
+  | 'cancelled';
+
+export type DeliveryPriority = 'low' | 'normal' | 'high' | 'urgent';
+
+export interface Delivery {
+  id: number;
+  order_number: string;
+  customer_name: string;
+  customer_phone: string;
+  pickup_address: string;
+  destination_address: string;
+  package_description: string | null;
+  package_weight: number;
+  package_quantity: number;
+  delivery_date: string;
+  priority: DeliveryPriority;
+  driver_id: number | null;
+  vehicle_id: number | null;
+  status: DeliveryStatus;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  // Hasil join dari backend (opsional, hanya ada di response GET)
+  driver_name?: string | null;
+  vehicle_code?: string | null;
+  plate_number?: string | null;
+}
+
 export interface PaginatedResponse<T> {
   success: boolean;
   message: string;

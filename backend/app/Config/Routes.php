@@ -33,6 +33,12 @@ $routes->group('api', ['namespace' => 'App\Controllers\Api'], function($routes) 
         $routes->get('drivers/(:num)', 'DriverController::show/$1');
         $routes->put('drivers/(:num)', 'DriverController::update/$1');
         $routes->delete('drivers/(:num)', 'DriverController::delete/$1');
+
+        // Deliveries
+        $routes->get('deliveries', 'DeliveryController::index');
+        $routes->post('deliveries', 'DeliveryController::create');
+        $routes->get('deliveries/(:num)', 'DeliveryController::show/$1');
+        $routes->put('deliveries/(:num)', 'DeliveryController::update/$1');
         
     });
 });

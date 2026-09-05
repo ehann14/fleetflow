@@ -1,5 +1,5 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
-import { ApiError, ApiResponse, PaginatedResponse, Vehicle, Driver } from '@/types';
+import { ApiError, ApiResponse, PaginatedResponse, Vehicle, Driver, Delivery } from '@/types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api';
 
@@ -48,6 +48,17 @@ let mockDrivers: Driver[] = [
     email: 'siti@fleetflow.com', license_number: 'SIM-B2-003', license_expiry: '2025-08-20',
     status: 'on_leave', total_deliveries: 45, completed_deliveries: 40, failed_deliveries: 5,
     rating: 4.1, created_at: '2024-01-01', updated_at: '2024-01-01'
+  },
+];
+
+let mockDeliveries: Delivery[] = [
+  {
+    id: 1, order_number: 'DO-20260901-0001', customer_name: 'PT Sinar Jaya', customer_phone: '081211112222',
+    pickup_address: 'Gudang A, Jl. Industri No.1', destination_address: 'Jl. Merdeka No.10, Bandung',
+    package_description: 'Elektronik', package_weight: 25.5, package_quantity: 3,
+    delivery_date: '2026-09-10', priority: 'high', driver_id: 1, vehicle_id: 2,
+    status: 'on_delivery', notes: null, created_at: '2026-09-01', updated_at: '2026-09-01',
+    driver_name: 'Mike Driver', vehicle_code: 'VH-001', plate_number: 'B 1234 CD'
   },
 ];
 
@@ -226,9 +237,6 @@ class ApiService {
       throw new Error('Driver not found');
     }
     
-    // Log sederhana untuk memastikan data yang dikirim frontend benar
-    console.log(`[API] Mengirim update untuk driver ID ${id}:`, data);
-    
     const response = await this.api.put(`/drivers/${id}`, data);
     return response.data;
   }
@@ -240,6 +248,73 @@ class ApiService {
       return { success: true, message: 'Driver deleted', data: null };
     }
     const response = await this.api.delete(`/drivers/${id}`);
+    return response.data;
+  }
+
+  // --- DELIVERIES ---
+  async getDeliveries(page = 1, search = '', status = '', priority = ''): Promise<PaginatedResponse<Delivery>> {
+    if (USE_MOCK) {
+      await new Promise(r => setTimeout(r, 500));
+      let filtered = mockDeliveries;
+      if (search) filtered = filtered.filter(d =>
+        d.order_number.toLowerCase().includes(search.toLowerCase()) ||
+        d.customer_name.toLowerCase().includes(search.toLowerCase())
+      );
+      if (status) filtered = filtered.filter(d => d.status === status);
+      if (priority) filtered = filtered.filter(d => d.priority === priority);
+
+      const perPage = 10;
+      const total = filtered.length;
+      const data = filtered.slice((page - 1) * perPage, page * perPage);
+
+      return {
+        success: true, message: 'Success', data,
+        meta: { current_page: page, last_page: Math.ceil(total / perPage) || 1, per_page: perPage, total }
+      };
+    }
+    const response = await this.api.get('/deliveries', { params: { page, search, status, priority } });
+    return response.data;
+  }
+
+  async getDelivery(id: number): Promise<ApiResponse<Delivery>> {
+    if (USE_MOCK) {
+      await new Promise(r => setTimeout(r, 300));
+      const delivery = mockDeliveries.find(d => d.id === id);
+      if (!delivery) throw new Error('Delivery not found');
+      return { success: true, message: 'Success', data: delivery };
+    }
+    const response = await this.api.get(`/deliveries/${id}`);
+    return response.data;
+  }
+
+  async createDelivery(data: Partial<Delivery>): Promise<ApiResponse<Delivery>> {
+    if (USE_MOCK) {
+      await new Promise(r => setTimeout(r, 500));
+      const newDelivery: Delivery = {
+        ...data,
+        id: Date.now(),
+        order_number: data.order_number || `DO-${Date.now()}`,
+        status: data.status || 'pending',
+        created_at: new Date().toISOString(), updated_at: new Date().toISOString()
+      } as Delivery;
+      mockDeliveries.unshift(newDelivery);
+      return { success: true, message: 'Delivery created', data: newDelivery };
+    }
+    const response = await this.api.post('/deliveries', data);
+    return response.data;
+  }
+
+  async updateDelivery(id: number, data: Partial<Delivery>): Promise<ApiResponse<Delivery>> {
+    if (USE_MOCK) {
+      await new Promise(r => setTimeout(r, 500));
+      const index = mockDeliveries.findIndex(d => d.id === id);
+      if (index !== -1) {
+        mockDeliveries[index] = { ...mockDeliveries[index], ...data, updated_at: new Date().toISOString() };
+        return { success: true, message: 'Delivery updated', data: mockDeliveries[index] };
+      }
+      throw new Error('Delivery not found');
+    }
+    const response = await this.api.put(`/deliveries/${id}`, data);
     return response.data;
   }
 }
