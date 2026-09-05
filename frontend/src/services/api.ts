@@ -318,9 +318,21 @@ class ApiService {
     return response.data;
   }
 
-  // --- ASSIGN DELIVERY (BARU DITAMBAHKAN) ---
+  // --- ASSIGN DELIVERY ---
   async assignDelivery(id: number, data: { driver_id: number; vehicle_id: number }): Promise<ApiResponse<Delivery>> {
     const response = await this.api.post(`/deliveries/${id}/assign`, data);
+    return response.data;
+  }
+
+  // --- UPDATE DELIVERY STATUS (BARU) ---
+  async updateDeliveryStatus(id: number, status: string, notes?: string): Promise<ApiResponse<Delivery>> {
+    const response = await this.api.post(`/deliveries/${id}/status`, { status, notes });
+    return response.data;
+  }
+
+  // --- GET DELIVERY HISTORY (BARU) ---
+  async getDeliveryHistory(id: number): Promise<ApiResponse<any[]>> {
+    const response = await this.api.get(`/deliveries/${id}/history`);
     return response.data;
   }
 

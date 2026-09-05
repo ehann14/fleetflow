@@ -4,6 +4,7 @@ namespace App\Controllers\Api;
 
 use App\Controllers\BaseController;
 use App\Models\DeliveryModel;
+use App\Models\DeliveryStatusHistoryModel;
 use App\Models\DriverModel;
 use App\Models\VehicleModel;
 
@@ -13,6 +14,21 @@ class DeliveryController extends BaseController
     protected $writeRoles = ['admin', 'dispatcher', 'manager']; // driver: read-only
 
     protected $statusesRequiringAssignment = ['assigned', 'pickup', 'on_delivery'];
+
+    /**
+     * Peta transisi status yang diizinkan.
+     * Key = status saat ini, Value = array status berikutnya yang valid.
+     * Array kosong = status akhir (tidak bisa berubah lagi).
+     */
+    protected $statusTransitions = [
+        'pending'     => ['assigned', 'cancelled'],
+        'assigned'    => ['pickup', 'cancelled'],
+        'pickup'      => ['on_delivery', 'cancelled'],
+        'on_delivery' => ['delivered', 'failed'],
+        'delivered'   => [],
+        'failed'      => [],
+        'cancelled'   => [],
+    ];
 
     public function __construct()
     {
@@ -118,6 +134,16 @@ class DeliveryController extends BaseController
             $data['vehicle_id'] ?? null
         );
 
+        // Catat history pembuatan delivery
+        $userData = $this->request->userData ?? null;
+        (new DeliveryStatusHistoryModel())->insert([
+            'delivery_id' => $id,
+            'from_status' => null,
+            'to_status'   => $status,
+            'notes'       => 'Delivery order dibuat',
+            'changed_by'  => $userData->id ?? null,
+        ]);
+
         $delivery = $this->deliveryModel->withRelations()->where('deliveries.id', $id)->first();
 
         return $this->response->setStatusCode(201)->setJSON([
@@ -127,6 +153,11 @@ class DeliveryController extends BaseController
         ]);
     }
 
+    /**
+     * Update data delivery NON-status (alamat, catatan, dll).
+     * PERHATIAN: Perubahan status TIDAK diizinkan lewat endpoint ini.
+     * Gunakan POST /deliveries/{id}/status untuk mengubah status.
+     */
     public function update($id = null)
     {
         if ($forbidden = $this->authorize($this->writeRoles)) return $forbidden;
@@ -147,16 +178,20 @@ class DeliveryController extends BaseController
             ]);
         }
 
-        $newStatus   = $data['status'] ?? $existing['status'];
-        $newDriverId = array_key_exists('driver_id', $data) ? $data['driver_id'] : $existing['driver_id'];
-        $newVehicleId = array_key_exists('vehicle_id', $data) ? $data['vehicle_id'] : $existing['vehicle_id'];
-
-        if (in_array($newStatus, $this->statusesRequiringAssignment, true)
-            && (empty($newDriverId) || empty($newVehicleId))) {
+        // BLOKIR perubahan status lewat endpoint ini
+        if (array_key_exists('status', $data)) {
             return $this->response->setStatusCode(400)->setJSON([
                 'success' => false,
-                'message' => 'Validasi gagal',
-                'errors'  => ['driver_id' => ['Driver dan kendaraan wajib diisi untuk status ini']],
+                'message' => 'Perubahan status tidak diizinkan lewat endpoint ini. Gunakan POST /api/deliveries/' . $id . '/status',
+                'errors'  => ['status' => ['Gunakan endpoint /status untuk mengubah status delivery']],
+            ]);
+        }
+
+        // BLOKIR perubahan driver_id/vehicle_id lewat endpoint ini (harus via /assign)
+        if (array_key_exists('driver_id', $data) || array_key_exists('vehicle_id', $data)) {
+            return $this->response->setStatusCode(400)->setJSON([
+                'success' => false,
+                'message' => 'Perubahan driver/kendaraan tidak diizinkan lewat endpoint ini. Gunakan POST /api/deliveries/' . $id . '/assign',
             ]);
         }
 
@@ -171,11 +206,7 @@ class DeliveryController extends BaseController
         }
 
         unset($data['id']);
-        $oldStatus = $existing['status'];
-
         $this->deliveryModel->update($id, $data);
-
-        $this->applyStatusSideEffects($oldStatus, $newStatus, $newDriverId, $newVehicleId);
 
         $updated = $this->deliveryModel->withRelations()->where('deliveries.id', $id)->first();
 
@@ -288,6 +319,7 @@ class DeliveryController extends BaseController
         }
 
         // Semua lolos → assign
+        $oldStatus = $delivery['status'];
         $this->deliveryModel->update($id, [
             'driver_id'  => $driverId,
             'vehicle_id' => $vehicleId,
@@ -296,12 +328,115 @@ class DeliveryController extends BaseController
 
         $vehicleModel->update($vehicleId, ['status' => 'assigned']);
 
+        // Catat history assignment
+        $userData = $this->request->userData ?? null;
+        (new DeliveryStatusHistoryModel())->insert([
+            'delivery_id' => $id,
+            'from_status' => $oldStatus,
+            'to_status'   => 'assigned',
+            'notes'       => 'Driver dan kendaraan ditugaskan',
+            'changed_by'  => $userData->id ?? null,
+        ]);
+
         $updated = $this->deliveryModel->withRelations()->where('deliveries.id', $id)->first();
 
         return $this->response->setJSON([
             'success' => true,
             'message' => 'Driver dan kendaraan berhasil ditugaskan',
             'data'    => $updated,
+        ]);
+    }
+
+    /**
+     * Update status delivery dengan validasi transisi & catat history.
+     * POST /api/deliveries/{id}/status
+     * Body: { "status": "pickup", "notes": "..." }
+     */
+    public function updateStatus($id = null)
+    {
+        if ($forbidden = $this->authorize($this->writeRoles)) return $forbidden;
+
+        $delivery = $this->deliveryModel->find($id);
+        if (!$delivery) {
+            return $this->response->setStatusCode(404)->setJSON([
+                'success' => false, 'message' => 'Delivery order tidak ditemukan',
+            ]);
+        }
+
+        $data = $this->request->getJSON(true);
+        $newStatus = $data['status'] ?? null;
+        $notes     = $data['notes'] ?? null;
+        $current   = $delivery['status'];
+
+        if (!$newStatus) {
+            return $this->response->setStatusCode(400)->setJSON([
+                'success' => false, 'message' => 'Status wajib diisi',
+            ]);
+        }
+
+        $allowedNext = $this->statusTransitions[$current] ?? [];
+
+        if (!in_array($newStatus, $allowedNext, true)) {
+            return $this->response->setStatusCode(422)->setJSON([
+                'success' => false,
+                'message' => "Transisi status tidak valid: {$current} → {$newStatus}",
+                'errors'  => ['status' => ["Status saat ini ({$current}) hanya bisa berubah ke: " . (empty($allowedNext) ? 'tidak ada (status akhir)' : implode(', ', $allowedNext))]],
+            ]);
+        }
+
+        // Status assigned/pickup/on_delivery wajib punya driver & vehicle
+        if (in_array($newStatus, $this->statusesRequiringAssignment, true)
+            && (empty($delivery['driver_id']) || empty($delivery['vehicle_id']))) {
+            return $this->response->setStatusCode(422)->setJSON([
+                'success' => false,
+                'message' => 'Driver dan kendaraan belum ditugaskan',
+            ]);
+        }
+
+        $this->deliveryModel->update($id, ['status' => $newStatus]);
+
+        $this->applyStatusSideEffects($current, $newStatus, $delivery['driver_id'], $delivery['vehicle_id']);
+
+        $userData = $this->request->userData ?? null;
+        (new DeliveryStatusHistoryModel())->insert([
+            'delivery_id' => $id,
+            'from_status' => $current,
+            'to_status'   => $newStatus,
+            'notes'       => $notes,
+            'changed_by'  => $userData->id ?? null,
+        ]);
+
+        $updated = $this->deliveryModel->withRelations()->where('deliveries.id', $id)->first();
+
+        return $this->response->setJSON([
+            'success' => true,
+            'message' => "Status berhasil diubah menjadi {$newStatus}",
+            'data'    => $updated,
+        ]);
+    }
+
+    /**
+     * Ambil riwayat perubahan status delivery.
+     * GET /api/deliveries/{id}/history
+     */
+    public function history($id = null)
+    {
+        $delivery = $this->deliveryModel->find($id);
+        if (!$delivery) {
+            return $this->response->setStatusCode(404)->setJSON([
+                'success' => false, 'message' => 'Delivery order tidak ditemukan',
+            ]);
+        }
+
+        $history = (new DeliveryStatusHistoryModel())
+            ->where('delivery_id', $id)
+            ->orderBy('created_at', 'ASC')
+            ->findAll();
+
+        return $this->response->setJSON([
+            'success' => true,
+            'message' => 'Success',
+            'data'    => $history,
         ]);
     }
 

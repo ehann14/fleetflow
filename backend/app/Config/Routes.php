@@ -44,5 +44,9 @@ $routes->group('api', ['namespace' => 'App\Controllers\Api'], function($routes) 
         $routes->put('deliveries/(:num)', 'DeliveryController::update/$1');
         $routes->post('deliveries/(:num)/assign', 'DeliveryController::assign/$1');
         
+        // Route Baru (Update Status & History)
+        $routes->post('deliveries/(:num)/status', 'DeliveryController::updateStatus/$1');
+        $routes->get('deliveries/(:num)/history', 'DeliveryController::history/$1');
+        
     });
 });

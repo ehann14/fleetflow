@@ -12,6 +12,31 @@ import {
   Calendar, StickyNote,
 } from 'lucide-react';
 
+// ==========================================
+// KONFIGURASI STATUS & TIMELINE
+// ==========================================
+const STATUS_TRANSITIONS: Record<DeliveryStatus, DeliveryStatus[]> = {
+  pending: ['assigned', 'cancelled'],
+  assigned: ['pickup', 'cancelled'],
+  pickup: ['on_delivery', 'cancelled'],
+  on_delivery: ['delivered', 'failed'],
+  delivered: [],
+  failed: [],
+  cancelled: [],
+};
+
+const STATUS_LABELS: Record<DeliveryStatus, string> = {
+  pending: 'Menunggu',
+  assigned: 'Ditugaskan',
+  pickup: 'Pengambilan',
+  on_delivery: 'Dalam Pengiriman',
+  delivered: 'Terkirim',
+  failed: 'Gagal',
+  cancelled: 'Dibatalkan',
+};
+
+const TIMELINE_STEPS: DeliveryStatus[] = ['pending', 'assigned', 'pickup', 'on_delivery', 'delivered'];
+
 export default function DeliveryDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -29,6 +54,10 @@ export default function DeliveryDetailPage() {
   const [assigning, setAssigning] = useState(false);
   const [assignError, setAssignError] = useState('');
 
+  // State untuk Timeline & Status Change
+  const [history, setHistory] = useState<any[]>([]);
+  const [changingStatus, setChangingStatus] = useState(false);
+
   const fetchDelivery = async () => {
     setLoading(true);
     try {
@@ -41,8 +70,20 @@ export default function DeliveryDetailPage() {
     }
   };
 
+  const fetchHistory = async () => {
+    try {
+      const res = await apiService.getDeliveryHistory(id);
+      setHistory(res.data || []);
+    } catch (e) {
+      console.error('Failed to fetch history:', e);
+    }
+  };
+
   useEffect(() => {
-    if (id) fetchDelivery();
+    if (id) {
+      fetchDelivery();
+      fetchHistory();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
@@ -58,7 +99,6 @@ export default function DeliveryDetailPage() {
       setDrivers(driverRes.data);
       setVehicles(vehicleRes.data);
       
-      // Pre-fill jika sudah ada assignment sebelumnya
       if (delivery?.driver_id) setAssignDriverId(delivery.driver_id);
       if (delivery?.vehicle_id) setAssignVehicleId(delivery.vehicle_id);
       
@@ -81,6 +121,7 @@ export default function DeliveryDetailPage() {
         vehicle_id: Number(assignVehicleId),
       });
       setDelivery(response.data);
+      fetchHistory(); // Refresh history karena assign juga mencatat history
       setIsAssignModalOpen(false);
     } catch (error: any) {
       const apiErrors = error.response?.data?.errors;
@@ -89,6 +130,22 @@ export default function DeliveryDetailPage() {
       setAssignError((firstFieldError as string) || message);
     } finally {
       setAssigning(false);
+    }
+  };
+
+  const handleStatusChange = async (nextStatus: DeliveryStatus) => {
+    if (!delivery) return;
+    if (!confirm(`Ubah status menjadi "${STATUS_LABELS[nextStatus]}"?`)) return;
+    
+    setChangingStatus(true);
+    try {
+      const res = await apiService.updateDeliveryStatus(delivery.id, nextStatus);
+      setDelivery(res.data);
+      fetchHistory(); // Refresh history setelah status berubah
+    } catch (error: any) {
+      alert(error.response?.data?.message || 'Gagal mengubah status');
+    } finally {
+      setChangingStatus(false);
     }
   };
 
@@ -113,6 +170,7 @@ export default function DeliveryDetailPage() {
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center gap-3 flex-wrap">
         <Button variant="outline" size="sm" onClick={() => router.push('/deliveries')}>
           <ArrowLeft className="w-4 h-4" />
@@ -126,7 +184,7 @@ export default function DeliveryDetailPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Info pelanggan & paket */}
+        {/* Kolom Kiri: Info pelanggan & paket */}
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Informasi Pengiriman</CardTitle>
@@ -173,43 +231,114 @@ export default function DeliveryDetailPage() {
           </CardContent>
         </Card>
 
-        {/* Penugasan & status */}
+        {/* Kolom Kanan: Timeline, Penugasan, & Aksi */}
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle className="text-base">Penugasan &amp; Status</CardTitle>
+            <CardTitle className="text-base">Timeline & Penugasan</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center gap-2 text-sm text-gray-600">
-              <Truck className="w-4 h-4" />
-              {delivery.driver_name ? (
-                <span className="font-medium text-gray-900">
-                  {delivery.driver_name} &middot; {delivery.vehicle_code} ({delivery.plate_number})
-                </span>
-              ) : (
-                <span className="text-gray-400">Belum ada driver/kendaraan yang ditugaskan</span>
-              )}
-            </div>
-
-            <div className="flex items-center gap-2 text-sm">
-              <span className="font-medium">Status Saat Ini:</span>
-              <DeliveryStatusBadge status={delivery.status} />
-            </div>
-
-            <div className="pt-4 border-t">
-              <Button onClick={openAssignModal} variant="default">
+          <CardContent className="space-y-6">
+            
+            {/* 1. Info Penugasan & Tombol Assign */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-sm text-gray-600">
+                <Truck className="w-4 h-4" />
+                {delivery.driver_name ? (
+                  <span className="font-medium text-gray-900">
+                    {delivery.driver_name} &middot; {delivery.vehicle_code} ({delivery.plate_number})
+                  </span>
+                ) : (
+                  <span className="text-gray-400">Belum ada driver/kendaraan yang ditugaskan</span>
+                )}
+              </div>
+              <Button onClick={openAssignModal} variant="outline" size="sm">
                 <Truck className="w-4 h-4 mr-2" />
                 {delivery.driver_id ? 'Ubah Penugasan' : 'Tugaskan Driver & Kendaraan'}
               </Button>
-              <p className="text-xs text-gray-500 mt-2">
-                Tindakan ini akan menetapkan driver dan kendaraan, serta mengubah status menjadi <strong>Assigned</strong>.
-                Pastikan driver dalam status <strong>Active</strong> dan kendaraan <strong>Available</strong>.
-              </p>
             </div>
+
+            <div className="border-t" />
+
+            {/* 2. Timeline Visual */}
+            <div>
+              <h4 className="text-sm font-medium mb-3">Progres Pengiriman</h4>
+              <div className="flex items-center mb-6 overflow-x-auto pb-2">
+                {TIMELINE_STEPS.map((step, idx) => {
+                  const currentIdx = TIMELINE_STEPS.indexOf(delivery.status);
+                  const isDone = currentIdx >= 0 && idx <= currentIdx;
+                  const isFailedOrCancelled = ['failed', 'cancelled'].includes(delivery.status);
+                  
+                  return (
+                    <div key={step} className="flex items-center flex-1 min-w-[80px]">
+                      <div className="flex flex-col items-center flex-1">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium transition-colors
+                          ${isDone && !isFailedOrCancelled ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-500'}`}>
+                          {idx + 1}
+                        </div>
+                        <span className="text-[10px] sm:text-xs mt-1 text-center text-gray-600 leading-tight">
+                          {STATUS_LABELS[step]}
+                        </span>
+                      </div>
+                      {idx < TIMELINE_STEPS.length - 1 && (
+                        <div className={`h-0.5 flex-1 mx-1 ${isDone && idx < currentIdx && !isFailedOrCancelled ? 'bg-green-500' : 'bg-gray-200'}`} />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 3. Warning untuk status akhir */}
+            {['failed', 'cancelled'].includes(delivery.status) && (
+              <div className="text-sm px-3 py-2 rounded-md bg-red-50 text-red-700 border border-red-200">
+                Delivery ini berstatus <strong>{STATUS_LABELS[delivery.status]}</strong> (status akhir).
+              </div>
+            )}
+
+            {/* 4. Tombol Aksi Dinamis */}
+            <div className="flex flex-wrap gap-2">
+              {STATUS_TRANSITIONS[delivery.status].length === 0 ? (
+                <p className="text-sm text-gray-400 italic">Tidak ada aksi lanjutan — status sudah final.</p>
+              ) : (
+                STATUS_TRANSITIONS[delivery.status].map((nextStatus) => (
+                  <Button
+                    key={nextStatus}
+                    variant={nextStatus === 'cancelled' || nextStatus === 'failed' ? 'destructive' : 'default'}
+                    disabled={changingStatus}
+                    onClick={() => handleStatusChange(nextStatus)}
+                  >
+                    {changingStatus && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                    Ubah ke: {STATUS_LABELS[nextStatus]}
+                  </Button>
+                ))
+              )}
+            </div>
+
+            {/* 5. Riwayat Perubahan Status */}
+            {history.length > 0 && (
+              <div className="pt-4 border-t">
+                <h4 className="text-sm font-medium mb-2">Riwayat Perubahan</h4>
+                <ul className="space-y-2 text-sm text-gray-600 max-h-48 overflow-y-auto pr-2">
+                  {history.map((h, i) => (
+                    <li key={h.id || i} className="flex justify-between items-start gap-2 py-1 border-b border-gray-100 last:border-0">
+                      <span className="flex-1">
+                        {h.from_status ? `${STATUS_LABELS[h.from_status as DeliveryStatus] ?? h.from_status} → ` : 'Dibuat → '}
+                        <span className="font-medium text-gray-900">{STATUS_LABELS[h.to_status as DeliveryStatus] ?? h.to_status}</span>
+                        {h.notes && <span className="block text-xs text-gray-500 mt-0.5">Catatan: {h.notes}</span>}
+                      </span>
+                      <span className="text-xs text-gray-400 whitespace-nowrap">
+                        {new Date(h.created_at).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' })}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
           </CardContent>
         </Card>
       </div>
 
-      {/* Modal Assign */}
+      {/* Modal Assign (Tetap dipertahankan) */}
       {isAssignModalOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
