@@ -4,6 +4,7 @@ namespace App\Controllers\Api;
 
 use App\Controllers\BaseController;
 use App\Models\VehicleModel;
+use App\Libraries\AuthContext;
 
 class VehicleController extends BaseController
 {
@@ -17,7 +18,7 @@ class VehicleController extends BaseController
 
     private function authorize(array $allowedRoles)
     {
-        $userData = $this->request->userData ?? null;
+        $userData = AuthContext::user();
 
         if (!$userData || !in_array($userData->role, $allowedRoles, true)) {
             return $this->response->setStatusCode(403)->setJSON([

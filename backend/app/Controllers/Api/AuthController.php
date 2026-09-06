@@ -5,6 +5,7 @@ namespace App\Controllers\Api;
 use App\Controllers\BaseController;
 use App\Models\UserModel;
 use App\Libraries\Jwt;
+use App\Libraries\AuthContext;
 
 class AuthController extends BaseController
 {
@@ -84,8 +85,8 @@ class AuthController extends BaseController
 
     public function me()
     {
-        $userData = $this->request->userData ?? null;
-        
+        $userData = AuthContext::user();
+
         if (!$userData) {
             return $this->response->setStatusCode(401)
                 ->setJSON(['success' => false, 'message' => 'Unauthorized']);
