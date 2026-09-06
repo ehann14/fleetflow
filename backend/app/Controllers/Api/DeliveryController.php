@@ -7,6 +7,7 @@ use App\Models\DeliveryModel;
 use App\Models\DeliveryStatusHistoryModel;
 use App\Models\DriverModel;
 use App\Models\VehicleModel;
+use App\Libraries\AuthContext;
 
 class DeliveryController extends BaseController
 {
@@ -30,6 +31,15 @@ class DeliveryController extends BaseController
         'cancelled'   => [],
     ];
 
+    /**
+     * Status di mana delivery MASIH BOLEH di-assign/re-assign driver & kendaraan
+     * lewat endpoint assign(). Begitu sudah lewat 'assigned' (masuk pickup/on_delivery)
+     * atau sudah di status akhir, assignment harus dianggap terkunci —
+     * perubahan driver/kendaraan di titik ini seharusnya lewat proses lain (mis. re-route),
+     * bukan lewat assign() biasa, supaya tidak melanggar aturan state transition M6.
+     */
+    protected $assignableStatuses = ['pending', 'assigned'];
+
     public function __construct()
     {
         $this->deliveryModel = new DeliveryModel();
@@ -37,7 +47,7 @@ class DeliveryController extends BaseController
 
     private function authorize(array $allowedRoles)
     {
-        $userData = $this->request->userData ?? null;
+        $userData = AuthContext::user();
 
         if (!$userData || !in_array($userData->role, $allowedRoles, true)) {
             return $this->response->setStatusCode(403)->setJSON([
@@ -135,7 +145,7 @@ class DeliveryController extends BaseController
         );
 
         // Catat history pembuatan delivery
-        $userData = $this->request->userData ?? null;
+        $userData = AuthContext::user();
         (new DeliveryStatusHistoryModel())->insert([
             'delivery_id' => $id,
             'from_status' => null,
@@ -219,7 +229,8 @@ class DeliveryController extends BaseController
 
     /**
      * Assign driver dan kendaraan ke delivery order.
-     * Validasi: driver aktif, vehicle tidak maintenance/inactive,
+     * Validasi: status delivery harus masih 'pending' atau 'assigned' (belum pickup),
+     * driver aktif, vehicle tidak maintenance/inactive,
      * driver tidak sedang menangani delivery aktif lain,
      * vehicle tidak sedang dipakai delivery aktif lain.
      */
@@ -232,6 +243,18 @@ class DeliveryController extends BaseController
             return $this->response->setStatusCode(404)->setJSON([
                 'success' => false,
                 'message' => 'Delivery order tidak ditemukan',
+            ]);
+        }
+
+        // FIX (M6): dulu endpoint ini langsung set status = 'assigned' tanpa
+        // mengecek status saat ini, sehingga delivery yang sudah 'pickup',
+        // 'on_delivery', atau sudah di status akhir ('delivered'/'failed'/'cancelled')
+        // bisa "ditarik mundur" paksa ke 'assigned' — melanggar aturan state transition.
+        if (!in_array($delivery['status'], $this->assignableStatuses, true)) {
+            return $this->response->setStatusCode(422)->setJSON([
+                'success' => false,
+                'message' => "Delivery berstatus '{$delivery['status']}' tidak dapat di-assign ulang lewat endpoint ini",
+                'errors'  => ['status' => ["Assignment hanya diizinkan saat status: " . implode(', ', $this->assignableStatuses)]],
             ]);
         }
 
@@ -329,7 +352,7 @@ class DeliveryController extends BaseController
         $vehicleModel->update($vehicleId, ['status' => 'assigned']);
 
         // Catat history assignment
-        $userData = $this->request->userData ?? null;
+        $userData = AuthContext::user();
         (new DeliveryStatusHistoryModel())->insert([
             'delivery_id' => $id,
             'from_status' => $oldStatus,
@@ -397,7 +420,7 @@ class DeliveryController extends BaseController
 
         $this->applyStatusSideEffects($current, $newStatus, $delivery['driver_id'], $delivery['vehicle_id']);
 
-        $userData = $this->request->userData ?? null;
+        $userData = AuthContext::user();
         (new DeliveryStatusHistoryModel())->insert([
             'delivery_id' => $id,
             'from_status' => $current,
