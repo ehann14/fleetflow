@@ -1,5 +1,8 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
-import { ApiError, ApiResponse, PaginatedResponse, Vehicle, Driver, Delivery } from '@/types';
+import {
+  ApiError, ApiResponse, PaginatedResponse, Vehicle, Driver, Delivery, VehicleStatus,
+  TrackingListResponse, TrackingDetailResponse, SendLocationPayload, SavedLocation,
+} from '@/types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api';
 
@@ -81,20 +84,40 @@ class ApiService {
   }
 
   private setupInterceptors() {
+    // Request Interceptor
     this.api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
       const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      
+      // DEBUG: Cek apakah token ada sebelum request dikirim
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`[API Request] ${config.method?.toUpperCase()} ${config.url} | Token: ${token ? 'PRESENT' : 'MISSING'}`);
+      }
+
       if (token && config.headers) {
         config.headers.Authorization = `Bearer ${token}`;
+      } else if (!token && process.env.NODE_ENV === 'development') {
+        console.warn('[API Warning] No token found in localStorage. Request might be rejected if auth is required.');
       }
+      
       return config;
+    }, (error) => {
+      return Promise.reject(error);
     });
     
+    // Response Interceptor
     this.api.interceptors.response.use(
       (response) => response,
       (error: AxiosError<ApiError>) => {
-        if (error.response?.status === 401) {
+        const status = error.response?.status;
+        
+        if (status === 401) {
           this.handleUnauthorized();
+        } else if (status === 403) {
+          console.error('[API Error 403] Forbidden. Check user role or permissions on backend.', error.response?.data);
+          // Opsional: Redirect jika 403 dianggap sebagai sesi invalid atau akses ditolak permanen
+          // this.handleUnauthorized(); 
         }
+        
         return Promise.reject(error);
       }
     );
@@ -102,9 +125,13 @@ class ApiService {
 
   private handleUnauthorized() {
     if (typeof window !== 'undefined') {
+      console.warn('[Auth] Session expired or invalid. Redirecting to login...');
       localStorage.removeItem('token');
       localStorage.removeItem('user');
-      window.location.href = '/login';
+      // Hindari redirect loop jika sudah di halaman login
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
     }
   }
 
@@ -333,6 +360,36 @@ class ApiService {
   // --- GET DELIVERY HISTORY (BARU) ---
   async getDeliveryHistory(id: number): Promise<ApiResponse<any[]>> {
     const response = await this.api.get(`/deliveries/${id}/history`);
+    return response.data;
+  }
+
+  // --- TRACKING (Milestone 7) ---
+  // GET /api/tracking -> posisi terkini semua kendaraan (role: admin, dispatcher, manager)
+  async getTracking(
+    params: { search?: string; status?: VehicleStatus | ''; online?: boolean } = {}
+  ): Promise<TrackingListResponse> {
+    const response = await this.api.get('/tracking', {
+      params: {
+        search: params.search || undefined,
+        status: params.status || undefined,
+        online: params.online ? 1 : undefined,
+      },
+    });
+    return response.data;
+  }
+
+  // GET /api/tracking/{vehicleId} -> posisi terkini + riwayat titik (untuk polyline)
+  async getVehicleTracking(
+    vehicleId: number,
+    params: { limit?: number; from?: string; to?: string } = {}
+  ): Promise<TrackingDetailResponse> {
+    const response = await this.api.get(`/tracking/${vehicleId}`, { params });
+    return response.data;
+  }
+
+  // POST /api/tracking/location -> kirim titik GPS (role: driver, admin, dispatcher)
+  async sendTrackingLocation(payload: SendLocationPayload): Promise<ApiResponse<SavedLocation>> {
+    const response = await this.api.post('/tracking/location', payload);
     return response.data;
   }
 

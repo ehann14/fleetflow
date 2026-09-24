@@ -3,6 +3,7 @@
 namespace App\Controllers\Api;
 
 use App\Controllers\BaseController;
+use App\Libraries\AuthContext; // <-- PASTIKAN INI DIIMPORT
 use App\Models\DeliveryModel;
 use App\Models\DriverModel;
 use App\Models\VehicleLocationModel;
@@ -32,14 +33,18 @@ class TrackingController extends BaseController
         $this->locationModel = new VehicleLocationModel();
     }
 
+    /**
+     * Cek otorisasi menggunakan AuthContext (bukan $this->request->userData)
+     */
     private function authorize(array $allowedRoles)
     {
-        $userData = $this->request->userData ?? null;
+        // AMBIL DARI AUTHCONTEXT SESUAI FILTER
+        $userData = AuthContext::get(); 
 
         if (!$userData || !in_array($userData->role, $allowedRoles, true)) {
             return $this->response->setStatusCode(403)->setJSON([
                 'success' => false,
-                'message' => 'Forbidden: Anda tidak memiliki akses untuk aksi ini',
+                'message' => 'Forbidden: Anda tidak memiliki akses untuk aksi ini. Role diperlukan: ' . implode(', ', $allowedRoles),
             ]);
         }
 
@@ -66,7 +71,8 @@ class TrackingController extends BaseController
             ]);
         }
 
-        $userData = $this->request->userData;
+        // AMBIL DARI AUTHCONTEXT
+        $userData = AuthContext::get();
         $isDriver = $userData->role === 'driver';
         $errors   = [];
 

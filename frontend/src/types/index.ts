@@ -1,3 +1,91 @@
+// ==========================================
+// TRACKING (Milestone 7)
+// ==========================================
+export type TrackingDeliveryStatus = 'assigned' | 'pickup' | 'on_delivery';
+
+export interface TrackingDelivery {
+  id: number;
+  order_number: string;
+  status: TrackingDeliveryStatus;
+  customer_name: string;
+  destination_address: string;
+}
+
+export interface TrackingItem {
+  vehicle_id: number;
+  vehicle_code: string;
+  plate_number: string;
+  brand: string;
+  model: string;
+  vehicle_status: VehicleStatus;
+  driver_id: number | null;
+  driver_name: string | null;
+  driver_phone: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  speed: number | null;
+  /** Format "YYYY-MM-DD HH:MM:SS", zona waktu server (UTC). Gunakan parseServerTime(). */
+  timestamp: string | null;
+  seconds_since_update: number | null;
+  is_online: boolean;
+  delivery: TrackingDelivery | null;
+}
+
+export interface TrackingHistoryPoint {
+  driver_id: number | null;
+  latitude: number;
+  longitude: number;
+  speed: number;
+  timestamp: string;
+}
+
+export interface TrackingDetail extends TrackingItem {
+  history: TrackingHistoryPoint[];
+}
+
+export interface TrackingListResponse {
+  success: boolean;
+  message: string;
+  data: TrackingItem[];
+  meta: {
+    total: number;
+    online: number;
+    online_threshold_seconds: number;
+  };
+}
+
+export interface TrackingDetailResponse {
+  success: boolean;
+  message: string;
+  data: TrackingDetail;
+  meta: {
+    history_count: number;
+    history_limit: number;
+    online_threshold_seconds: number;
+  };
+}
+
+export interface SendLocationPayload {
+  vehicle_id: number;
+  /** Opsional untuk role driver (diisi otomatis oleh backend). */
+  driver_id?: number;
+  latitude: number;
+  longitude: number;
+  speed?: number;
+  /** "YYYY-MM-DD HH:MM:SS", ISO 8601, atau epoch detik. Default: waktu server. */
+  timestamp?: string | number;
+}
+
+export interface SavedLocation {
+  id: number;
+  vehicle_id: number;
+  driver_id: number | null;
+  latitude: number;
+  longitude: number;
+  speed: number;
+  timestamp: string;
+}
+
 export interface User {
   id: number;
   email: string;
