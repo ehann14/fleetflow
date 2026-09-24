@@ -194,3 +194,43 @@ export interface ApiError {
   message: string;
   errors?: Record<string, string[]>;
 }
+
+// ==========================================
+// PROOF OF DELIVERY (Milestone 8)
+// ==========================================
+export interface DeliveryProofDeliverySummary {
+  id: number;
+  order_number: string;
+  status: DeliveryStatus;
+  customer_name: string;
+  destination_address: string;
+  driver_id: number | null;
+  vehicle_id: number | null;
+}
+
+export interface DeliveryProof {
+  id: number;
+  delivery_id: number;
+  recipient_name: string;
+  /** Butuh Authorization header -> ambil lewat apiService.getProofImage(), bukan <img src>. */
+  photo_url: string;
+  signature_url: string;
+  latitude: number | null;
+  longitude: number | null;
+  /** Format "YYYY-MM-DD HH:MM:SS", zona waktu server (UTC). Gunakan formatDateTime(). */
+  delivered_at: string;
+  notes: string | null;
+  submitted_by: { id: number; name: string | null } | null;
+  created_at: string;
+  delivery: DeliveryProofDeliverySummary;
+}
+
+export interface SubmitProofPayload {
+  recipient_name: string;
+  photo: File | Blob;
+  /** Data URL PNG dari canvas signature pad ("data:image/png;base64,..."). */
+  signature: string;
+  latitude?: number;
+  longitude?: number;
+  notes?: string;
+}

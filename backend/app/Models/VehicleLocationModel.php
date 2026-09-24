@@ -1,169 +1,166 @@
-<?php
+'use client';
 
-namespace App\Models;
+import { useEffect, useState } from 'react';
+// Pastikan path import ini benar sesuai struktur folder project Anda
+import { apiService } from '@/services/api'; 
+import { Delivery, PaginatedResponse } from '@/types';
 
-use CodeIgniter\Model;
+export default function DeliveriesPage() {
+  const [deliveries, setDeliveries] = useState<Delivery[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
-/**
- * Riwayat titik GPS (tabel vehicle_locations) + lokasi terakhir per kendaraan
- * (tabel vehicle_last_locations).
- */
-class VehicleLocationModel extends Model
-{
-    protected $table            = 'vehicle_locations';
-    protected $primaryKey       = 'id';
-    protected $useAutoIncrement = true;
-    protected $returnType       = 'array';
-    protected $useSoftDeletes   = false;
-    protected $protectFields    = true;
-    protected $allowedFields    = [
-        'vehicle_id', 'driver_id', 'latitude', 'longitude', 'speed', 'recorded_at',
-    ];
+  useEffect(() => {
+    // Flag untuk mencegah update state jika komponen sudah unmount
+    let isMounted = true;
 
-    protected $useTimestamps = true;
-    protected $dateFormat    = 'datetime';
-    protected $createdField  = 'created_at';
-    protected $updatedField  = '';
+    console.log('>>> [DELIVERIES PAGE] Komponen dimounting & useEffect berjalan...');
 
-    /** Status delivery yang dianggap "sedang berjalan". */
-    private const ACTIVE_DELIVERY_STATUSES = "'assigned','pickup','on_delivery'";
+    const fetchData = async () => {
+      try {
+        console.log('>>> [DELIVERIES PAGE] Memulai request ke API /deliveries...');
+        
+        // Panggil service API
+        // Pastikan parameter sesuai dengan definisi di api.ts
+        const response: PaginatedResponse<Delivery> = await apiService.getDeliveries(1, '', '', '');
+        
+        console.log('>>> [DELIVERIES PAGE] Response mentah dari API:', response);
 
-    /**
-     * Simpan 1 titik GPS:
-     *  - selalu ditambahkan ke riwayat (vehicle_locations)
-     *  - lokasi terakhir (vehicle_last_locations) hanya diganti kalau titik ini
-     *    tidak lebih lama dari yang sudah tersimpan (aman untuk data yang datang terlambat / tidak berurutan)
-     *
-     * @param array{vehicle_id:int,driver_id:?int,latitude:float,longitude:float,speed:float,recorded_at:string} $point
-     *
-     * @return int ID baris riwayat, atau 0 bila gagal
-     */
-    public function record(array $point): int
-    {
-        $now = date('Y-m-d H:i:s');
-
-        $this->db->transStart();
-
-        $this->db->table('vehicle_locations')->insert($point + ['created_at' => $now]);
-        $historyId = (int) $this->db->insertID();
-
-        // Coba insert dulu (kendaraan belum pernah kirim lokasi). INSERT IGNORE aman terhadap race condition.
-        $this->db->table('vehicle_last_locations')->ignore(true)->insert($point + ['updated_at' => $now]);
-
-        if ($this->db->affectedRows() === 0) {
-            // Baris sudah ada -> update hanya jika titik baru tidak lebih lama.
-            $this->db->table('vehicle_last_locations')
-                ->where('vehicle_id', $point['vehicle_id'])
-                ->where('recorded_at <=', $point['recorded_at'])
-                ->update([
-                    'driver_id'   => $point['driver_id'],
-                    'latitude'    => $point['latitude'],
-                    'longitude'   => $point['longitude'],
-                    'speed'       => $point['speed'],
-                    'recorded_at' => $point['recorded_at'],
-                    'updated_at'  => $now,
-                ]);
+        if (isMounted) {
+          // Validasi struktur response
+          if (response && Array.isArray(response.data)) {
+            setDeliveries(response.data);
+            setError(null);
+            console.log(`>>> [DELIVERIES PAGE] Berhasil memuat ${response.data.length} data.`);
+          } else {
+            throw new Error('Format data dari server tidak valid (bukan array)');
+          }
         }
-
-        $this->db->transComplete();
-
-        return $this->db->transStatus() ? $historyId : 0;
-    }
-
-    /**
-     * Query dasar "posisi terkini kendaraan":
-     * vehicles + lokasi terakhir + driver + delivery aktif (maksimal 1 baris per kendaraan).
-     *
-     * Bila kendaraan punya lebih dari satu delivery aktif, yang diambil berurutan:
-     * on_delivery > pickup > assigned, lalu id terbaru.
-     */
-    private function currentQuery()
-    {
-        $active = self::ACTIVE_DELIVERY_STATUSES;
-
-        return $this->db->table('vehicles v')
-            ->select(
-                'v.id AS vehicle_id, v.vehicle_code, v.plate_number, v.brand, v.model, v.status AS vehicle_status, '
-                . 'dr.id AS driver_id, dr.name AS driver_name, dr.phone AS driver_phone, '
-                . 'l.latitude, l.longitude, l.speed, l.recorded_at, '
-                . 'd.id AS delivery_id, d.order_number, d.status AS delivery_status, '
-                . 'd.customer_name, d.destination_address'
-            )
-            ->join('vehicle_last_locations l', 'l.vehicle_id = v.id', 'left')
-            ->join(
-                'deliveries d',
-                "d.id = (SELECT d2.id FROM deliveries d2 WHERE d2.vehicle_id = v.id AND d2.status IN ({$active}) "
-                . "ORDER BY FIELD(d2.status, 'on_delivery', 'pickup', 'assigned'), d2.id DESC LIMIT 1)",
-                'left',
-                false
-            )
-            ->join('drivers dr', 'dr.id = COALESCE(l.driver_id, d.driver_id)', 'left', false);
-    }
-
-    /**
-     * Daftar posisi terkini semua kendaraan yang PERNAH mengirim lokasi.
-     *
-     * @param string      $search        cari di plat / kode kendaraan / nama driver
-     * @param string      $vehicleStatus filter status kendaraan
-     * @param string|null $onlineSince   bila diisi (Y-m-d H:i:s) hanya kendaraan dengan titik >= waktu ini
-     */
-    public function findCurrent(string $search = '', string $vehicleStatus = '', ?string $onlineSince = null): array
-    {
-        $builder = $this->currentQuery()->where('l.vehicle_id IS NOT NULL', null, false);
-
-        if ($search !== '') {
-            $builder->groupStart()
-                ->like('v.plate_number', $search)
-                ->orLike('v.vehicle_code', $search)
-                ->orLike('dr.name', $search)
-                ->groupEnd();
+      } catch (err: any) {
+        console.error('>>> [DELIVERIES PAGE] TERJADI ERROR SAAT FETCH:', err);
+        
+        if (isMounted) {
+          // Ambil pesan error yang paling relevan
+          const msg = err.response?.data?.message || err.message || 'Gagal terhubung ke server backend';
+          setError(msg);
         }
-
-        if ($vehicleStatus !== '') {
-            $builder->where('v.status', $vehicleStatus);
+      } finally {
+        if (isMounted) {
+          console.log('>>> [DELIVERIES PAGE] Proses selesai, mematikan spinner loading.');
+          setLoading(false); // PENTING: Ini yang menghentikan spinner muter
         }
+      }
+    };
 
-        if ($onlineSince !== null) {
-            $builder->where('l.recorded_at >=', $onlineSince);
-        }
+    fetchData();
 
-        return $builder->orderBy('l.recorded_at', 'DESC')->get()->getResultArray();
-    }
+    // Cleanup function
+    return () => {
+      isMounted = false;
+    };
+  }, []); // Empty dependency array = hanya jalan sekali saat mount
 
-    /**
-     * Posisi terkini 1 kendaraan. Mengembalikan null bila kendaraan tidak ada.
-     * Bila kendaraan ada tapi belum pernah kirim lokasi, field lokasi bernilai null.
-     */
-    public function findCurrentByVehicle(int $vehicleId): ?array
-    {
-        $row = $this->currentQuery()->where('v.id', $vehicleId)->get()->getRowArray();
+  // --- RENDER STATES ---
 
-        return $row ?: null;
-    }
+  // 1. State Loading
+  if (loading) {
+    return (
+      <div className="flex h-[60vh] w-full flex-col items-center justify-center gap-4">
+        <div className="h-10 w-10 animate-spin rounded-full border-4 border-gray-200 border-t-blue-600"></div>
+        <p className="text-sm text-gray-500">Memuat data pengiriman...</p>
+      </div>
+    );
+  }
 
-    /**
-     * Riwayat titik GPS satu kendaraan: N titik TERBARU, dikembalikan urut lama -> baru
-     * (siap dipakai sebagai polyline).
-     */
-    public function history(int $vehicleId, int $limit = 100, ?string $from = null, ?string $to = null): array
-    {
-        $builder = $this->db->table('vehicle_locations')
-            ->select('id, driver_id, latitude, longitude, speed, recorded_at')
-            ->where('vehicle_id', $vehicleId);
+  // 2. State Error
+  if (error) {
+    return (
+      <div className="m-6 rounded-lg border border-red-200 bg-red-50 p-6 text-red-700 shadow-sm">
+        <h3 className="text-lg font-bold flex items-center gap-2">
+          <span>⚠️ Gagal Memuat Data</span>
+        </h3>
+        <p className="mt-2 text-sm font-mono bg-red-100 p-2 rounded">{error}</p>
+        <div className="mt-4 flex gap-2">
+          <button 
+            onClick={() => window.location.reload()}
+            className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 transition-colors"
+          >
+            Coba Lagi (Reload)
+          </button>
+          <a 
+            href="/dashboard"
+            className="rounded-md border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50 transition-colors"
+          >
+            Kembali ke Dashboard
+          </a>
+        </div>
+      </div>
+    );
+  }
 
-        if ($from !== null) {
-            $builder->where('recorded_at >=', $from);
-        }
-        if ($to !== null) {
-            $builder->where('recorded_at <=', $to);
-        }
+  // 3. State Sukses (Tabel Data)
+  return (
+    <div className="p-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Daftar Pengiriman</h1>
+          <p className="text-sm text-gray-500 mt-1">Kelola semua order pengiriman barang</p>
+        </div>
+        {/* Tombol Add Delivery bisa ditaruh di sini */}
+      </div>
 
-        $rows = $builder->orderBy('recorded_at', 'DESC')
-            ->orderBy('id', 'DESC')
-            ->limit($limit)
-            ->get()
-            ->getResultArray();
-
-        return array_reverse($rows);
-    }
+      <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm text-gray-600">
+            <thead className="bg-gray-50 text-xs uppercase text-gray-700">
+              <tr>
+                <th className="px-6 py-4 font-semibold">Order No</th>
+                <th className="px-6 py-4 font-semibold">Pelanggan</th>
+                <th className="px-6 py-4 font-semibold">Tujuan</th>
+                <th className="px-6 py-4 font-semibold">Status</th>
+                <th className="px-6 py-4 font-semibold">Tanggal</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {deliveries.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-12 text-center text-gray-500 italic">
+                    <div className="flex flex-col items-center gap-2">
+                      <span className="text-2xl">📦</span>
+                      Belum ada data pengiriman ditemukan.
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                deliveries.map((d) => (
+                  <tr key={d.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-6 py-4 font-medium text-gray-900">{d.order_number}</td>
+                    <td className="px-6 py-4">{d.customer_name}</td>
+                    <td className="px-6 py-4 truncate max-w-xs" title={d.destination_address}>
+                      {d.destination_address}
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                        d.status === 'delivered' ? 'bg-green-100 text-green-800' :
+                        d.status === 'on_delivery' ? 'bg-blue-100 text-blue-800' :
+                        d.status === 'failed' || d.status === 'cancelled' ? 'bg-red-100 text-red-800' :
+                        'bg-yellow-100 text-yellow-800'
+                      }`}>
+                        {d.status.replace('_', ' ').toUpperCase()}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {new Date(d.delivery_date).toLocaleDateString('id-ID', {
+                        day: 'numeric', month: 'short', year: 'numeric'
+                      })}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
 }

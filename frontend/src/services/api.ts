@@ -2,6 +2,7 @@ import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'ax
 import {
   ApiError, ApiResponse, PaginatedResponse, Vehicle, Driver, Delivery, VehicleStatus,
   TrackingListResponse, TrackingDetailResponse, SendLocationPayload, SavedLocation,
+  DeliveryProof, SubmitProofPayload,
 } from '@/types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api';
@@ -361,6 +362,47 @@ class ApiService {
   async getDeliveryHistory(id: number): Promise<ApiResponse<any[]>> {
     const response = await this.api.get(`/deliveries/${id}/history`);
     return response.data;
+  }
+
+  // --- PROOF OF DELIVERY (Milestone 8) ---
+  // POST /api/deliveries/{id}/proof (multipart/form-data)
+  // Role: admin, dispatcher, driver (driver hanya delivery miliknya). Sukses => delivery menjadi 'delivered'.
+  async submitDeliveryProof(
+    id: number,
+    payload: SubmitProofPayload,
+    onProgress?: (percent: number) => void
+  ): Promise<ApiResponse<DeliveryProof>> {
+    const form = new FormData();
+    form.append('recipient_name', payload.recipient_name);
+    form.append('photo', payload.photo, payload.photo instanceof File ? payload.photo.name : 'photo.jpg');
+    form.append('signature', payload.signature);
+    if (payload.latitude !== undefined && payload.longitude !== undefined) {
+      form.append('latitude', String(payload.latitude));
+      form.append('longitude', String(payload.longitude));
+    }
+    if (payload.notes) form.append('notes', payload.notes);
+
+    const response = await this.api.post(`/deliveries/${id}/proof`, form, {
+      // Biarkan browser menambahkan boundary multipart; timeout dilonggarkan untuk upload di jaringan lambat
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 120000,
+      onUploadProgress: (event) => {
+        if (onProgress && event.total) onProgress(Math.round((event.loaded * 100) / event.total));
+      },
+    });
+    return response.data;
+  }
+
+  // GET /api/deliveries/{id}/proof -> 404 bila belum ada bukti (Axios akan melempar error)
+  async getDeliveryProof(id: number): Promise<ApiResponse<DeliveryProof>> {
+    const response = await this.api.get(`/deliveries/${id}/proof`);
+    return response.data;
+  }
+
+  // GET /api/deliveries/{id}/proof/photo|signature -> Blob (file dilindungi JWT, tidak bisa lewat <img src> langsung)
+  async getProofImage(id: number, kind: 'photo' | 'signature'): Promise<Blob> {
+    const response = await this.api.get(`/deliveries/${id}/proof/${kind}`, { responseType: 'blob' });
+    return response.data as Blob;
   }
 
   // --- TRACKING (Milestone 7) ---
