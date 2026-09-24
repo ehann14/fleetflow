@@ -47,6 +47,11 @@ $routes->group('api', ['namespace' => 'App\Controllers\Api'], function($routes) 
         // Route Baru (Update Status & History)
         $routes->post('deliveries/(:num)/status', 'DeliveryController::updateStatus/$1');
         $routes->get('deliveries/(:num)/history', 'DeliveryController::history/$1');
+
+        // GPS Tracking (Milestone 7)
+        $routes->post('tracking/location', 'TrackingController::storeLocation');
+        $routes->get('tracking', 'TrackingController::index');
+        $routes->get('tracking/(:num)', 'TrackingController::show/$1');
         
     });
 });
