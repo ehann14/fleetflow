@@ -44,9 +44,15 @@ $routes->group('api', ['namespace' => 'App\Controllers\Api'], function($routes) 
         $routes->put('deliveries/(:num)', 'DeliveryController::update/$1');
         $routes->post('deliveries/(:num)/assign', 'DeliveryController::assign/$1');
         
-        // Route Baru (Update Status & History)
+        // Update Status & History (Milestone 6)
         $routes->post('deliveries/(:num)/status', 'DeliveryController::updateStatus/$1');
         $routes->get('deliveries/(:num)/history', 'DeliveryController::history/$1');
+
+        // Proof of Delivery (Milestone 8)
+        $routes->post('deliveries/(:num)/proof', 'DeliveryProofController::store/$1');
+        $routes->get('deliveries/(:num)/proof', 'DeliveryProofController::show/$1');
+        $routes->get('deliveries/(:num)/proof/photo', 'DeliveryProofController::photo/$1');
+        $routes->get('deliveries/(:num)/proof/signature', 'DeliveryProofController::signature/$1');
 
         // GPS Tracking (Milestone 7)
         $routes->post('tracking/location', 'TrackingController::storeLocation');

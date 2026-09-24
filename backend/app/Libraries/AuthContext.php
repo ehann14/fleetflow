@@ -17,6 +17,15 @@ class AuthContext
         return self::$user;
     }
 
+    /**
+     * Alias dari get(). Dipakai oleh AuthController, VehicleController,
+     * DriverController, dan DeliveryController.
+     */
+    public static function user()
+    {
+        return self::$user;
+    }
+
     public static function clear(): void
     {
         self::$user = null;
