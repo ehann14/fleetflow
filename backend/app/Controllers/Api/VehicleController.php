@@ -121,9 +121,13 @@ class VehicleController extends BaseController
             ]);
         }
 
-        $data['id'] = $id; // dipakai oleh rule is_unique[...,{id}]
+        // 'id' HARUS tetap ada di $data sampai update() selesai: rule is_unique[...,id,{id}] butuh nilainya,
+        // dan Model::update() memvalidasi ulang. Tanpa 'id', data milik sendiri dianggap duplikat.
+        // 'id' otomatis dibuang oleh protectFields karena tidak ada di $allowedFields.
+        $data['id'] = (int) $id;
+        unset($data['created_at'], $data['updated_at']);
 
-        if (!$this->vehicleModel->validate($data)) {
+        if (!$this->vehicleModel->update($id, $data)) {
             return $this->response->setStatusCode(400)->setJSON([
                 'success' => false,
                 'message' => 'Validasi gagal',
@@ -131,8 +135,6 @@ class VehicleController extends BaseController
             ]);
         }
 
-        unset($data['id']);
-        $this->vehicleModel->update($id, $data);
         $updated = $this->vehicleModel->find($id);
 
         return $this->response->setJSON([

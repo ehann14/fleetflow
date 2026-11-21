@@ -33,6 +33,8 @@ class DeliveryModel extends Model
     protected $updatedField  = 'updated_at';
 
     protected $validationRules = [
+        // Wajib ada: CI 4.7 melempar LogicException bila rule memakai {id} tapi field 'id' tidak punya rule.
+        'id'              => 'permit_empty|integer',
         'order_number'         => 'required|max_length[50]|is_unique[deliveries.order_number,id,{id}]',
         'customer_name'        => 'required|max_length[100]',
         'customer_phone'       => 'required|max_length[20]',

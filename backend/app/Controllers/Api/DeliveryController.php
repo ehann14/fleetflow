@@ -205,18 +205,19 @@ class DeliveryController extends BaseController
             ]);
         }
 
-        $data['id'] = $id; // dipakai oleh rule is_unique[...,{id}]
+        // 'id' HARUS tetap ada di $data sampai update() selesai: rule is_unique[...,id,{id}] butuh nilainya,
+        // dan Model::update() memvalidasi ulang. Tanpa 'id', data milik sendiri dianggap duplikat.
+        // 'id' otomatis dibuang oleh protectFields karena tidak ada di $allowedFields.
+        $data['id'] = (int) $id;
+        unset($data['created_at'], $data['updated_at']);
 
-        if (!$this->deliveryModel->validate($data)) {
+        if (!$this->deliveryModel->update($id, $data)) {
             return $this->response->setStatusCode(400)->setJSON([
                 'success' => false,
                 'message' => 'Validasi gagal',
                 'errors'  => $this->deliveryModel->errors(),
             ]);
         }
-
-        unset($data['id']);
-        $this->deliveryModel->update($id, $data);
 
         $updated = $this->deliveryModel->withRelations()->where('deliveries.id', $id)->first();
 

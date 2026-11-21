@@ -94,7 +94,9 @@ class ApiService {
         console.log(`[API Request] ${config.method?.toUpperCase()} ${config.url} | Token: ${token ? 'PRESENT' : 'MISSING'}`);
       }
 
-      if (token && config.headers) {
+      // Jangan kirim token lama ke endpoint login
+      const isLogin = config.url?.includes('/auth/login');
+      if (token && config.headers && !isLogin) {
         config.headers.Authorization = `Bearer ${token}`;
       } else if (!token && process.env.NODE_ENV === 'development') {
         console.warn('[API Warning] No token found in localStorage. Request might be rejected if auth is required.');
@@ -112,7 +114,14 @@ class ApiService {
         const status = error.response?.status;
         
         if (status === 401) {
-          this.handleUnauthorized();
+          // Abaikan 401 dari request yang memakai token LAMA (mis. /auth/me yang terlambat selesai
+          // setelah user berhasil login) supaya token baru tidak ikut terhapus.
+          const sentAuth = (error.config?.headers as any)?.Authorization as string | undefined;
+          const currentToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+          const isLogin = error.config?.url?.includes('/auth/login');
+          if (!isLogin && (!sentAuth || !currentToken || sentAuth === `Bearer ${currentToken}`)) {
+            this.handleUnauthorized();
+          }
         } else if (status === 403) {
           console.error('[API Error 403] Forbidden. Check user role or permissions on backend.', error.response?.data);
           // Opsional: Redirect jika 403 dianggap sebagai sesi invalid atau akses ditolak permanen
@@ -129,6 +138,9 @@ class ApiService {
       console.warn('[Auth] Session expired or invalid. Redirecting to login...');
       localStorage.removeItem('token');
       localStorage.removeItem('user');
+      // Hapus juga cookie token (dibaca middleware.ts). Kalau tidak, /login dipantulkan ke /dashboard
+      // dan ProtectedRoute melempar balik ke /login -> redirect loop.
+      document.cookie = 'token=; path=/; max-age=0; SameSite=Lax';
       // Hindari redirect loop jika sudah di halaman login
       if (window.location.pathname !== '/login') {
         window.location.href = '/login';

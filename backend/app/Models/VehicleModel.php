@@ -31,6 +31,8 @@ class VehicleModel extends Model
     protected $updatedField  = 'updated_at';
 
     protected $validationRules = [
+        // Wajib ada: CI 4.7 melempar LogicException bila rule memakai {id} tapi field 'id' tidak punya rule.
+        'id'              => 'permit_empty|integer',
         'vehicle_code'    => 'required|max_length[50]|is_unique[vehicles.vehicle_code,id,{id}]',
         'plate_number'    => 'required|max_length[20]|is_unique[vehicles.plate_number,id,{id}]',
         'brand'           => 'required|max_length[100]',
